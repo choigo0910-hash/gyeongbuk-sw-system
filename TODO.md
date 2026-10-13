@@ -9,6 +9,8 @@
 ---
 
 ## 최종 업데이트
+**2026-10-13 15:26**
+**2026-10-13 15:04**
 **2026-10-13 15:02**
 **2026-10-13 14:40**
 **2026-10-13 13:25**
@@ -1154,7 +1156,7 @@ npx supabase db push
 #### 남은 후속 작업 (별도)
 - ~~`company-documents` Storage 버킷이 public (getPublicUrl 사용) → private화 + storage.objects 정책 + signed URL 전환 권장~~ → **Phase 33에서 완료 (2026-10-13)**
 - 다중 소속 사용자의 `.single()`/`.maybeSingle()` PGRST116 이슈 (기존 문제, RLS와 무관)
-- 실제 계정 수동 테스트: admin@test.com (관리자 페이지 전체, 엑셀 import), test@test.com (팀원 승인), 신규 가입 플로우
+- 실제 계정 수동 테스트: admin@test.com (관리자 페이지 전체, 엑셀 import), test@test.com (팀원 승인), 신규 가입 플로우 — 서류 화면은 Phase 33 수동 테스트 체크리스트 참조
 
 #### 빌드 확인
 - `npm run build` 성공 확인
@@ -1215,6 +1217,14 @@ npx supabase db push
 #### 빌드 확인
 - `npm run build` 성공, lint 에러는 전부 기존 패턴 (건드리지 않은 파일에서 동일 에러 확인)
 
+#### 실제 계정 수동 테스트 (2026-10-13 진행 — 사용자 확인, 서류 화면)
+- [x] **포털 기업서류**: 업로드 → 메타데이터(경로 저장) → CEO/팀원 목록 조회·서명 URL 200 → **Phase 35에서 E2E 검증 완료**
+- [x] **포털 구매요청**: 구매요청 작성 → 증빙 업로드/조회/서명 URL 200/상태 변경 → **Phase 35에서 E2E 검증 완료**
+- [x] **포털 환급신청**: 환급신청 + 증빙/첫 환급 추가 서류(id_card) 업로드·서명 URL 200 → **Phase 35에서 E2E 검증 완료**
+- [x] **포털 서류 양식**: 관리자 양식 등록 → 멤버 목록 조회·다운로드 서명 URL 200·카운트 증가 → **Phase 35에서 E2E 검증 완료**
+- [x] **관리자**: 기업서류 승인, 구매/환급 증빙 서명 200, 환급 승인 → **Phase 35에서 E2E 검증 완료**
+- [x] **권한 분리**: 타 기업 CEO의 서류 서명 거부, 타 기업 데이터 조회 [] 확인 → **Phase 35에서 E2E 검증 완료**
+
 ---
 
 ### Phase 34: Git 저장소 초기 커밋 및 GitHub 연동 ✅ 완료 (2026-10-13)
@@ -1229,6 +1239,45 @@ npx supabase db push
   - 원격: `https://github.com/choigo0910-hash/gyeongbuk-sw-system.git`
   - 로컬 `master` → `main` 변경, origin 푸시, GitHub 기본 브랜치를 `main`으로 설정, 원격 구 `master` 삭제
   - 업스트림 추적 설정 완료 (`git push`만으로 동작)
+
+---
+
+### Phase 35: 서류 화면 E2E 테스트 및 발견 버그 수정 ✅ 완료 (2026-10-13)
+
+Phase 32(RLS) + Phase 33(Storage private화)을 실제 API 수준에서 종단간 검증. throwaway 계정 4개(e2e.ceo/ceob/member/admin)로 회원가입→승인→업로드→다운로드→권한분리 전 플로우 테스트.
+
+#### 테스트 결과 (전체 통과)
+
+| # | 시나리오 | 결과 |
+|---|---|---|
+| 1 | CEO 회원가입(기업 생성+self-grant), 팀원 가입(기업 가입 요청) | ✅ |
+| 2 | 로그인 게이트: pending 사용자 차단, 승인 후 통과 | ✅ |
+| 3 | CEO 팀원 승인 (user_companies active + user_roles 부여) | ✅ |
+| 4 | 기업서류/구매증빙/환급증빙 업로드 → 경로 저장 → 멤버 서명 URL 200 → GET 200 | ✅ |
+| 5 | 관리자 검토: 기업서류 승인, 구매/환급 증빙 열람, 환급 승인 | ✅ |
+| 6 | **권한 분리**: 타 기업 CEO 서명 거부(403), 타 기업 데이터 조회 [] | ✅ |
+| 7 | **익명 차단**: anon 회원가입 검색은 200(컬럼 제한), 풀 SELECT 42501 | ✅ |
+| 8 | 관리자 cross-company 접근 허용(설계대로), 삭제 템플릿 접근 차단 | ✅ |
+
+#### 발견·수정한 버그 (2건)
+
+1. **CEO 자기 승인 권한 상승 구멍** (치명) — `supabase/migrations/20261013021000_fix_user_companies_ceo_withcheck.sql`
+   - 증상: CEO가 자기 pending 행을 PATCH로 `active`로 변경 가능 (204 성공)
+   - 원인: PostgreSQL permissive RLS 정책은 **USING과 WITH CHECK가 각각 OR로 독립 평가**됨. 행 가시성은 `update_own`(본인 행), 새 행 검사는 `update_ceo`의 WITH CHECK(CEO 보호 조건 누락)로 통과하는 조합 가능
+   - 수정: `update_ceo`의 WITH CHECK에도 `NOT target_is_company_admin(user_id, company_id)` 추가 → 어떤 정책 조합으로도 차단. 재테스트 42501 확인
+   - 참고: PostgREST PATCH는 0행 매치여도 204 반환 → **항상 재조회로 검증** 필요
+2. **서류 양식 다운로드 카운트 미증가** — `supabase/migrations/20261013022000_add_download_count_rpc.sql` + `src/app/portal/guidelines/page.tsx`
+   - 증상: 멤버가 다운로드해도 download_count가 0 유지 (document_templates UPDATE는 관리자 전용인데 앱이 에러를 삼킴)
+   - 수정: SECURITY DEFINER RPC `increment_document_template_download(uuid)`로 "삭제 안 된 양식 카운트 +1"만 허용 (컬럼 GRANT 우회는 permissive 조합 구멍 위험 → RPC 채택). RPC 증가/직접 PATCH 차단/삭제 템플릿 no-op 검증 완료
+
+#### 기타 검증 노트
+- Signed URL: POST `/storage/v1/object/sign/{bucket}/{path}` → 반환 경로 앞에 `/storage/v1` 접두 필요
+- 진단용 임시 마이그레이션(20261013020000)은 다음 마이그레이션에서 자동 DROP — pg_policies 실시간 스냅샷으로 정책 일치 확인용
+
+#### 남은 작업
+- [ ] **E2E 테스트 데이터 정리**: `bash /tmp/e2e-cleanup.sh` 실행 (e2e.* 사용자 4개, E2E 기업 2개, 관련 행/파일 삭제 — 실데이터 무영향)
+- [ ] **실계정 브라우저 UI 클릭 테스트** (데이터 레이어는 전부 검증됨 — 화면 버튼/렌더링 확인용)
+- [ ] **커밋 대기**: 마이그레이션 3건(20261013020000/21000/22000) + `portal/guidelines/page.tsx` + TODO.md
 
 ---
 

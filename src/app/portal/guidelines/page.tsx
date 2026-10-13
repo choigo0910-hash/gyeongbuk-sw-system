@@ -117,11 +117,10 @@ export default function GuidelinesPage() {
 
   const handleDownload = async (template: DocumentTemplate) => {
     try {
-      // 다운로드 카운트 증가
-      await supabase
-        .from("document_templates")
-        .update({ download_count: (template.download_count || 0) + 1 })
-        .eq("id", template.id)
+      // 다운로드 카운트 증가 (RLS: document_templates UPDATE는 관리자 전용 → RPC로 증가)
+      await supabase.rpc("increment_document_template_download", {
+        p_template_id: template.id,
+      })
 
       // 파일 다운로드 (서명된 URL 생성)
       const { data } = await supabase
