@@ -9,6 +9,7 @@
 ---
 
 ## 최종 업데이트
+**2026-10-13 15:02**
 **2026-10-13 14:40**
 **2026-10-13 13:25**
 **2026-07-25 15:00**
@@ -1213,6 +1214,21 @@ npx supabase db push
 
 #### 빌드 확인
 - `npm run build` 성공, lint 에러는 전부 기존 패턴 (건드리지 않은 파일에서 동일 에러 확인)
+
+---
+
+### Phase 34: Git 저장소 초기 커밋 및 GitHub 연동 ✅ 완료 (2026-10-13)
+
+- [x] **초기 커밋** (`ff374f3`, 155개 파일, 47,083줄)
+  - 커밋 전 시크릿 스캔: 하드코딩된 키 없음 확인 (`.env*`는 .gitignore로 제외)
+  - `supabase/.temp/` (CLI 세션 토큰 포함)을 .gitignore에 추가 후 제외
+- [x] **.bak 백업 파일 정리** (`972ba10`)
+  - `src/app/portal/dashboard/page.tsx.bak`, `.bak3` 삭제 (7월 14일자 구버전 백업, 현재 798줄 vs 백업 668줄)
+  - `.gitignore`에 `*.bak*` 패턴 추가
+- [x] **GitHub 푸시 및 기본 브랜치 main 전환**
+  - 원격: `https://github.com/choigo0910-hash/gyeongbuk-sw-system.git`
+  - 로컬 `master` → `main` 변경, origin 푸시, GitHub 기본 브랜치를 `main`으로 설정, 원격 구 `master` 삭제
+  - 업스트림 추적 설정 완료 (`git push`만으로 동작)
 
 ---
 
