@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { getSignedFileUrl } from "@/lib/storage"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -122,14 +123,12 @@ export default function GuidelinesPage() {
         p_template_id: template.id,
       })
 
-      // 파일 다운로드 (서명된 URL 생성)
-      const { data } = await supabase
-        .storage
-        .from("documents")
-        .createSignedUrl(template.file_url, 60)
+      // 파일 다운로드 (서명된 URL 생성 — file_url은 bucket/경로 형식이라
+      // createSignedUrl 직접 호출하면 버킷이 이중 붙음 → 헬퍼로 경로 분리)
+      const signedUrl = await getSignedFileUrl(supabase, template.file_url, 60)
 
-      if (data?.signedUrl) {
-        window.open(data.signedUrl, "_blank")
+      if (signedUrl) {
+        window.open(signedUrl, "_blank")
       }
     } catch (error) {
       console.error("파일 다운로드 실패:", error)

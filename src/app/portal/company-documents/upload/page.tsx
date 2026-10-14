@@ -141,6 +141,7 @@ export default function CompanyDocumentUploadPage() {
           file_url: `company-documents/${fileName}`,
           file_size: file.size,
           status: "draft",
+          submitted_by: user.id, // 제출자 기록 (user_profiles FK — 관리자 화면 임베드용)
         })
 
       if (dbError) {

@@ -72,7 +72,7 @@ export default function AdminCompanyDocumentReviewPage() {
         .select(`
           *,
           companies!inner(name),
-          submitted_by_user:auth.users!company_documents_submitted_by_fkey(email)
+          submitted_by_user:user_profiles!company_documents_submitted_by_fkey(email)
         `)
         .eq("id", id)
         .single()

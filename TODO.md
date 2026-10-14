@@ -9,6 +9,7 @@
 ---
 
 ## 최종 업데이트
+**2026-10-13 16:58**
 **2026-10-13 15:35**
 **2026-10-13 15:26**
 **2026-10-13 15:04**
@@ -1275,10 +1276,26 @@ Phase 32(RLS) + Phase 33(Storage private화)을 실제 API 수준에서 종단�
 - Signed URL: POST `/storage/v1/object/sign/{bucket}/{path}` → 반환 경로 앞에 `/storage/v1` 접두 필요
 - 진단용 임시 마이그레이션(20261013020000)은 다음 마이그레이션에서 자동 DROP — pg_policies 실시간 스냅샷으로 정책 일치 확인용
 
+#### UI 클릭 테스트 (2026-10-13 16:58 완료 — Playwright + Chrome 헤드리스)
+- [x] **23개 시나리오 전부 통과** (스크린샷 증거: /tmp/ui-shots/)
+  - pending 로그인 게이트 차단 → 승인 후 포털 진입
+  - 기업서류 UI 업로드(Select+파일) → 목록 → "보기" 서명 URL 200
+  - 관리자 목록·검토 화면 → "보기" 200 → 승인 처리
+  - 구매요청 검토시작→승인 → 승인 후 증빙 UI 업로드 → "보기" 200
+  - 환급 검토(증빙 "보기" 200) → 승인 → 상세 화면 "보기" 200
+  - 서류 양식 탭 → 다운로드 → 서명 URL 200 + 카운트 RPC 증가
+  - 타기업 CEO: A사 서류·구매요청 미노출 (권한 분리 화면 확인)
+- **발견·수정한 버그 (3건)**:
+  1. **관리자 기업서류 목록·검토가 항상 0건/빈 화면** (치명) — `auth.users!fk` 임베드는 FK 미존재 + auth 스키마 미노출로 PostgREST 400, 페이지가 에러 삼킴 → FK 마이그레이션(20261013030000, submitted_by→user_profiles) + `user_profiles!fk(email)` 임베드로 수정 (`admin/company-documents/page.tsx`, `[id]/review/page.tsx`)
+  2. **서류 양식 다운로드 버튼 무반응** — `createSignedUrl("documents/...")`에 버킷 포함 경로를 넣어 `documents/documents/` 이중 → Object not found, 에러 삼켜 클릭해도 아무 일 없음 → `getSignedFileUrl` 헬퍼 전환 (`portal/guidelines/page.tsx`)
+  3. **admin/notifications 400** — 동일한 auth.users 임베드(사용처 없음) → select에서 제거
+  - 부수: 업로드 시 `submitted_by` 기록 추가 (`portal/company-documents/upload/page.tsx`), 제출 행 백필은 마이그레이션에서 처리
+- npm run build 통과 ("✓ Compiled successfully")
+
 #### 남은 작업
-- [x] **E2E 테스트 데이터 정리 완료 (2026-10-13 15:35)**: `bash /tmp/e2e-cleanup.sh` 실행 — Storage 객체 5개(200), DB 행 전체(204), auth 사용자 4개(200) 삭제, 잔여 확인 [] · "남은 e2e 사용자: 없음"
-- [ ] **실계정 브라우저 UI 클릭 테스트** (데이터 레이어는 전부 검증됨 — 화면 버튼/렌더링 확인용)
-- [x] **커밋·푸시 완료** (`2091836`): 마이그레이션 3건(20261013020000/21000/22000) + `portal/guidelines/page.tsx` + TODO.md → main 푸시 (2026-10-13)
+- [x] **UI 테스트 데이터 정리 (2차)**: `bash /tmp/e2e-cleanup.sh` 재실행 — e2e 계정 3개, 기업 2개, UI 테스트로 생성된 서류/구매/환급/양식 행·파일 삭제
+  - 완료 (2026-10-13): e2e 사용자 7명(고아 3명 포함)·기업 4곳·DB 행 전체·proof/refund/documents 버킷 파일 삭제. company-documents 버킷은 UI 업로드 파일명에 "e2e"가 없어 고아 12개 잔존 → Supabase Dashboard에서 수동 삭제, 버킷 비었음 최종 확인
+- [ ] **커밋 대기**: 마이그레이션 1건(20261013030000) + 앱 수정 5파일(company-documents 목록·검토, notifications, guidelines, upload) + TODO.md
 
 ---
 

@@ -62,13 +62,10 @@ export default function AdminNotificationsPage() {
 
       if (templatesData) setTemplates(templatesData)
 
-      // 최근 알림 조회
+      // 최근 알림 조회 (auth.users는 PostgREST 노출 스키마 밖 — 임베드 제거)
       const { data: notificationsData } = await supabase
         .from("notifications")
-        .select(`
-          *,
-          auth.users (email)
-        `)
+        .select("*")
         .order("created_at", { ascending: false })
         .limit(100)
 

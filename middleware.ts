@@ -85,6 +85,8 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // Vercel 권고: Edge 런타임은 deprecated — Node.js 런타임 사용 (안정성·성능)
+  runtime: "nodejs",
   matcher: [
     /*
      * Match all request paths except:

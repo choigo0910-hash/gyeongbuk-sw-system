@@ -79,7 +79,7 @@ export default function AdminCompanyDocumentsPage() {
         .select(`
           *,
           companies(name),
-          submitted_by_user:auth.users!company_documents_submitted_by_fkey(email)
+          submitted_by_user:user_profiles!company_documents_submitted_by_fkey(email)
         `)
         .order("created_at", { ascending: false })
 

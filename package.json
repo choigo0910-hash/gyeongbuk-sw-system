@@ -33,6 +33,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "lucide-react": "^1.24.0",
+    "playwright-core": "^1.64.0",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4",
     "typescript": "^5"
