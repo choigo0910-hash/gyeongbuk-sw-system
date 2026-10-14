@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // 공개 경로는 통과
@@ -85,8 +85,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Vercel 권고: Edge 런타임은 deprecated — Node.js 런타임 사용 (안정성·성능)
-  runtime: "nodejs",
+  // Next.js 16: proxy 파일은 기본이 Node.js 런타임 (runtime 옵션 지정 시 에러)
   matcher: [
     /*
      * Match all request paths except:
