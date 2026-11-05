@@ -52,7 +52,7 @@ interface PurchaseRequest {
   status: string
   rejection_reason: string | null
   created_at: string
-  created_by: string | null
+  requester_id: string | null
   company_name: string
 }
 
@@ -327,9 +327,9 @@ export default function AdminPurchaseRequestReviewPage() {
       if (error) throw error
 
       // 알림 발송
-      if (request?.created_by) {
+      if (request?.requester_id) {
         await sendNotification({
-          userId: request.created_by,
+          userId: request.requester_id,
           type: "purchase_approved" as NotificationType,
           title: "구매요청이 승인되었습니다",
           content: `승인 금액: ${formatCurrency(approvedAmount)}`,
@@ -384,9 +384,9 @@ export default function AdminPurchaseRequestReviewPage() {
       if (error) throw error
 
       // 알림 발송
-      if (request?.created_by) {
+      if (request?.requester_id) {
         await sendNotification({
-          userId: request.created_by,
+          userId: request.requester_id,
           type: "purchase_rejected" as NotificationType,
           title: "구매요청이 반려되었습니다",
           content: `반려 사유: ${rejectionReason}`,
@@ -435,9 +435,9 @@ export default function AdminPurchaseRequestReviewPage() {
       if (error) throw error
 
       // 알림 발송
-      if (request?.created_by) {
+      if (request?.requester_id) {
         await sendNotification({
-          userId: request.created_by,
+          userId: request.requester_id,
           type: "purchase_reviewing" as NotificationType,
           title: "구매요청 검토가 시작되었습니다",
           content: `제출하신 ${request.item_name}의 검토가 시작되었습니다.`,
@@ -485,9 +485,9 @@ export default function AdminPurchaseRequestReviewPage() {
       if (error) throw error
 
       // 알림 발송
-      if (request?.created_by) {
+      if (request?.requester_id) {
         await sendNotification({
-          userId: request.created_by,
+          userId: request.requester_id,
           type: "purchase_proof_approved" as NotificationType,
           title: "증빙서류가 승인되었습니다",
           content: `제출하신 ${request.item_name}의 증빙서류가 승인되었습니다.`,
@@ -541,9 +541,9 @@ export default function AdminPurchaseRequestReviewPage() {
       if (error) throw error
 
       // 알림 발송
-      if (request?.created_by) {
+      if (request?.requester_id) {
         await sendNotification({
-          userId: request.created_by,
+          userId: request.requester_id,
           type: "purchase_proof_rejected" as NotificationType,
           title: "증빙서류가 반려되었습니다",
           content: `반려 사유: ${rejectionReason}`,

@@ -9,6 +9,7 @@
 ---
 
 ## 최종 업데이트
+**2026-11-05 16:58**
 **2026-11-05 16:32**
 **2026-11-05 13:55**
 **2026-11-05 10:01**
@@ -1418,7 +1419,27 @@ throwaway 계정 3개(A사 CEO, B사 CEO, 관리자) + 테스트 기업 2곳 + �
 - 테스트 데이터 전부 삭제 확인, npm run build 통과
 
 #### 남은 점검 후보
-- [ ] `purchase_requests`(결제 및 구매 요청)도 같은 유형 점검 필요 — 정책이 기업 멤버 여부만 검사 (`purchase_requests_update`)
+- [x] `purchase_requests`(결제 및 구매 요청)도 같은 유형 점검 → Phase 40에서 처리
+
+---
+
+### Phase 40: 결제 및 구매 요청 상태 전이 강제 · 증빙 삭제 · 알림 수정 ✅ 완료 (2026-11-05)
+
+#### 적용 전 테스트 (26개 중 12개 실패)
+- 🔴 **권한 우회 11건**: 기업 사용자가 자기 요청을 approved/completed로 변경, approved·승인 금액으로 생성, 반려 위조, 승인 없이 proof_submitted로 건너뛰기, 승인 전 증빙 추가, 승인 금액 위조, **증빙 제출하면서 요청 금액 변경**, 검토중 요청 수정, 승인된 요청 삭제
+- 🟠 **증빙 삭제 무반응**: `proof_documents`에 DELETE 정책이 없어 0행 삭제, 에러 없이 성공처럼 보임
+- 🟠 **관리자 처리 알림 미발송**: 검토 화면이 없는 컬럼 `request.created_by`로 수신자를 찾음 (실제 컬럼 `requester_id`) → 승인·반려·검토시작·증빙승인·증빙반려 알림이 기업에 전혀 안 감
+
+#### 수정
+- 마이그레이션 `20261105030000_enforce_purchase_request_state_transitions.sql`
+  - 포털 흐름만 허용: draft/submitted/rejected → 수정·재제출(submitted)·삭제, approved/proof_rejected → 증빙 제출(상태만 proof_submitted, 다른 내용 변경 불가)
+  - 트리거 `guard_purchase_request_changes`: 승인 금액·승인자·요청자·기업 변경 불가, 검토자·반려 사유는 재제출 시 NULL 초기화만, 검토중·처리 완료 요청 변경 불가
+  - proof_documents: 추가·삭제는 approved/proof_rejected 요청에만 (삭제 정책 신설)
+- `src/app/admin/purchase-requests/[id]/review/page.tsx`: 알림 수신자 `created_by` → `requester_id` (5곳)
+
+#### 테스트
+- 구매 요청 26개 시나리오 전부 통과 + 회귀: 예산서·프로그램·확인서 57/57, 환급 29/29
+- 테스트 데이터 전부 삭제 확인, npm run build 통과
 
 ---
 
