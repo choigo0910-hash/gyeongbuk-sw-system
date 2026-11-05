@@ -9,6 +9,7 @@
 ---
 
 ## 최종 업데이트
+**2026-11-05 18:14**
 **2026-11-05 17:20**
 **2026-11-05 16:58**
 **2026-11-05 16:32**
@@ -386,7 +387,7 @@ TODO.md 읽어보고 상태 알려줘.
 - [ ] **운영 프로그램 일정 등록** (관리자 화면): 「경북 SW성장기업육성지원사업」 시작일·종료일 미설정 → 확인서 신청 불가 상태
 - [x] **Next.js 보안 업그레이드**: 16.4.0 → 16.4.5 (Phase 41, 2026-11-05)
 - [x] **xlsx 취약점 해소**: SheetJS 공식 배포판 0.20.3으로 교체 (Phase 41)
-- [ ] **린트 정리**: `npm run lint` 307건(오류 141, 경고 166) — 빌드는 통과
+- [x] **린트 정리**: 307건 → 0건 (Phase 42, 2026-11-05)
 - [ ] **개발 의존성 경고 8건**(moderate, typescript-eslint/minimatch): npm 제안 해결책이 eslint-config-next 15로 다운그레이드라 보류 — 상위 패키지 수정 대기
 - [ ] 추가 기능 개발 또는 버그 수정
 
@@ -1471,6 +1472,38 @@ throwaway 계정 3개(A사 CEO, B사 CEO, 관리자) + 테스트 기업 2곳 + �
 - npm run build 통과 (Next.js 16.4.5)
 - 로컬 프로덕션 서버(`next start`) + 테스트 관리자 세션 쿠키로 API 직접 호출: 템플릿 다운로드 200(xlsx) → 같은 파일로 엑셀 가져오기 200(예산서 1건·항목 3건, 합계 3,350,000원), 비로그인 307 → 테스트 데이터 삭제
 - Vercel 프로덕션 배포 Ready, swstartup.com 200
+
+---
+
+### Phase 42: 린트 전체 정리 · 사용자 관리 화면 튕김 · 구매 요청 첨부파일 저장 ✅ 완료 (2026-11-05)
+
+#### 1) 린트 307건(오류 141, 경고 166) → 0건 (`3d84cfb`)
+- 67개 파일을 겹치지 않는 4묶음으로 나눠 병렬 수정, 원칙: 동작 변경 없음
+- no-unused-vars 132: 미사용 import/변수 제거 (login의 미사용 중복 `LoginForm`, 대시보드 `onCompanyAssigned` 등 죽은 코드 포함)
+- no-explicit-any 79: 로컬 interface·`unknown` 좁히기로 교체 (공용 타입·시그니처 호환 유지, `Record<string, unknown>`)
+- react-hooks 92 (마운트 시 조회 패턴): fetch 함수를 effect 위로 옮겨 `useCallback`(안정 의존성만) 또는 effect 내부로 이동 — `createClient()`/`useRouter()`는 싱글톤이라 루프 없음 확인
+  - `react-hooks/set-state-in-effect`는 await 이후 setState도 잡는 규칙 → 마운트 조회 15곳은 사유 명시 `eslint-disable-next-line`
+  - dialog/switch·합계 금액 동기화: effect 대신 렌더 중 이전 값 비교, admin/settings 상수는 useState 초기값으로
+- eslint-disable 총 19곳 (위 15 + 로고 `<img>` 2 + 전역 폰트 1 + 회원가입 완료 sessionStorage 1), 모두 사유 주석
+- 검증: `eslint --max-warnings 0`, `tsc --noEmit`, build 통과. **수정 전/후 빌드로 48개 화면 Playwright 비교**(CEO·관리자·비로그인) — 재요청 루프·페이지 오류·리다이렉트·요청 수 기준과 동일
+
+#### 2) 관리자 사용자 관리 화면 직접 진입·새로고침 시 /login으로 튕김 (`5c09ce5`, 기존 버그)
+- 원인: `UserProvider` 로딩 중에는 `isAdmin()`이 false → 권한 검사가 곧바로 redirect
+- 수정: `loading` 완료 후에만 판정, effect 의존성은 매 렌더 새로 생기는 `isAdmin` 함수 대신 boolean (`src/app/admin/users/page.tsx`)
+- 검증: 관리자 직접 진입 시 목록 로드(루프 없음), CEO는 기존대로 포털로 차단
+
+#### 3) 구매 요청 신청 첨부파일이 저장되지 않음 (`f1bb635`, 기존 버그)
+- 증상: 견적서·추가 증빙(업무대행수수료), 학습 계획서(위탁교육비), 제출 서류(용역비)를 선택해도 저장 코드·테이블이 없어 버려짐
+- 마이그레이션 `20261105040000_create_purchase_request_attachments.sql`
+  - `purchase_request_attachments` (attachment_type: quote/additional/education_plan/service_document) + RLS: 기업 멤버는 draft/submitted/rejected 요청에만 본인 명의로 첨부
+  - `proof_documents_storage_select` 정책에 첨부파일 경로 허용 추가 (proof_documents는 승인 후 증빙 전용이라 별도 테이블)
+- 앱: 제출 시 선택한 분류의 파일만 `proof-documents/purchase-requests/{요청ID}/{유형}_{시각}_{랜덤}.{확장자}`로 업로드 (Storage 키는 영문·숫자, 원본 파일명은 `file_name`), 일부 실패 시 실패 파일명 안내
+- 신규 컴포넌트 `src/components/purchase-requests/attachments-card.tsx` — 포털 상세·관리자 검토 화면에 "신청 첨부파일" 카드(서명 URL 열람)
+- 필수(*) 표시 파일의 제출 강제는 하지 않음 (폼 전체가 필수 항목 검증 없음 — 필요 시 별도 작업)
+- 검증: 첨부 E2E 15개 통과 (한글 파일명 보존·서명 URL 200, 타사 차단, 타인 명의·잘못된 유형·승인 후 추가 차단, 기존 증빙 열람 회귀, 포털·관리자 화면 렌더)
+
+#### 참고
+- 파일 보관함 업로드 정책(`proof_documents_storage_insert`)은 인증 사용자 누구나 업로드 가능(기존) — DB 행 없이는 열람 불가하나 고아 파일은 생길 수 있음
 
 ---
 
