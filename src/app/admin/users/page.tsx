@@ -88,7 +88,9 @@ const statusOptions = [
 
 export default function AdminUsersPage() {
   const router = useRouter()
-  const { isAdmin, isSuperAdmin } = useUser()
+  const { isAdmin, isSuperAdmin, loading: userLoading } = useUser()
+  // 사용자 정보 로딩 전에는 isAdmin()이 false — 로딩 완료 후에만 권한 판정
+  const isAdminUser = !userLoading && isAdmin()
   const [users, setUsers] = useState<UserWithRoles[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -214,7 +216,8 @@ export default function AdminUsersPage() {
   }, [])
 
   useEffect(() => {
-    if (!isAdmin()) {
+    if (userLoading) return
+    if (!isAdminUser) {
       router.push("/login")
       return
     }
@@ -222,7 +225,7 @@ export default function AdminUsersPage() {
     loadUsers()
     fetchCompanies()
     fetchAllCompanies()
-  }, [isAdmin, router, loadUsers, fetchCompanies, fetchAllCompanies])
+  }, [userLoading, isAdminUser, router, loadUsers, fetchCompanies, fetchAllCompanies])
 
   const fetchCompanyUsers = async (companyId: string) => {
     const supabase = createClient()
