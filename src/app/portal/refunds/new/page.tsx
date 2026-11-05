@@ -137,6 +137,23 @@ export default function NewRefundApplicationPage() {
     )
   }
 
+  // 결제 내역 전체(첫 건 포함)를 순서대로 저장
+  const savePayments = async (supabase: ReturnType<typeof createClient>, refundApplicationId: string) => {
+    const { error } = await supabase.from("refund_payments").insert(
+      payments.map((p, index) => ({
+        refund_application_id: refundApplicationId,
+        payment_date: new Date(p.paymentDate).toISOString(),
+        vendor: p.vendor,
+        purpose: p.purpose,
+        category: p.category,
+        payment_method: p.paymentMethod,
+        amount: p.amount,
+        sort_order: index,
+      }))
+    )
+    if (error) throw error
+  }
+
   // 증빙서류 예시 다운로드
   const handleDownloadSample = () => {
     // TODO: 실제 예시 파일을 public 폴더에 두고 다운로드
@@ -173,7 +190,7 @@ export default function NewRefundApplicationPage() {
         return
       }
 
-      const { error } = await supabase
+      const { data: draftData, error } = await supabase
         .from("refund_applications")
         .insert({
           company_id: companyId,
@@ -191,8 +208,12 @@ export default function NewRefundApplicationPage() {
           bank_holder: bankHolder || null,
           status: "draft",
         })
+        .select("id")
+        .single()
 
       if (error) throw error
+
+      await savePayments(supabase, draftData.id)
 
       alert("임시저장되었습니다.")
       router.push("/portal/refunds")
@@ -284,23 +305,7 @@ export default function NewRefundApplicationPage() {
 
       if (insertError) throw insertError
 
-      // 결제 정보 추가 저장 (여러 건인 경우)
-      if (payments.length > 1) {
-        const additionalPayments = payments.slice(1).map((p) => ({
-          refund_application_id: refundData.id,
-          payment_date: new Date(p.paymentDate).toISOString(),
-          vendor: p.vendor,
-          purpose: p.purpose,
-          category: p.category,
-          amount: p.amount,
-        }))
-
-        const { error: paymentsError } = await supabase
-          .from("refund_payments")
-          .insert(additionalPayments)
-
-        if (paymentsError) console.error("추가 결제 정보 저장 실패:", paymentsError)
-      }
+      await savePayments(supabase, refundData.id)
 
       // 증빙서류 업로드
       if (proofFiles.length > 0) {

@@ -7,6 +7,7 @@ import { formatCurrency } from "@/lib/utils"
 import { getSignedFileUrl } from "@/lib/storage"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { RefundPaymentsCard } from "@/components/refunds/refund-payments-card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { InfoIcon } from "lucide-react"
 import Link from "next/link"
@@ -259,6 +260,9 @@ export default function RefundDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* 결제 내역 (2건 이상) */}
+      <RefundPaymentsCard refundApplicationId={application.id} categoryLabels={categoryLabels} />
 
       {/* 환급 계좌 정보 */}
       {(application.bank_name || application.bank_account || application.bank_holder) && (
