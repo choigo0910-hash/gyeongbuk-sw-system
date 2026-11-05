@@ -7,6 +7,7 @@ import { formatCurrency } from "@/lib/utils"
 import { getSignedFileUrl } from "@/lib/storage"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { PurchaseRequestAttachmentsCard } from "@/components/purchase-requests/attachments-card"
 import { CurrencyInput } from "@/components/ui/currency-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -652,6 +653,9 @@ export default function AdminPurchaseRequestReviewPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* 신청 첨부파일 (견적서·학습 계획서·용역 서류) */}
+      <PurchaseRequestAttachmentsCard purchaseRequestId={request.id} />
 
       {/* 증빙서류 */}
       <Card>

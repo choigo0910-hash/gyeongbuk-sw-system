@@ -40,6 +40,50 @@ const categories = [
   { code: "promotion", name: "홍보비", budgetCode: "사무관리비, 201-01", contactRequired: false },
 ]
 
+// 신청 단계 첨부파일 (purchase_request_attachments.attachment_type)
+type AttachmentType = "quote" | "additional" | "education_plan" | "service_document"
+
+// Storage 키는 영문·숫자만 안전 — 원본 파일명은 file_name 컬럼에 보존
+const buildAttachmentPath = (requestId: string, type: AttachmentType, file: File) => {
+  const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase().replace(/[^a-z0-9]/g, "") : ""
+  const unique = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  return `purchase-requests/${requestId}/${type}_${unique}${ext ? "." + ext : ""}`
+}
+
+// 업로드 후 첨부 행 저장, 실패한 파일명 목록 반환
+const uploadAttachments = async (
+  supabase: ReturnType<typeof createClient>,
+  requestId: string,
+  userId: string,
+  attachments: { file: File; type: AttachmentType }[]
+): Promise<string[]> => {
+  const failed: string[] = []
+  for (const { file, type } of attachments) {
+    const path = buildAttachmentPath(requestId, type, file)
+    const { error: uploadError } = await supabase.storage.from("proof-documents").upload(path, file)
+    if (uploadError) {
+      console.error("첨부파일 업로드 실패:", uploadError)
+      failed.push(file.name)
+      continue
+    }
+
+    // 버킷이 private이므로 절대 URL 대신 경로 저장 — 조회 시 서명 URL 생성
+    const { error: insertError } = await supabase.from("purchase_request_attachments").insert({
+      purchase_request_id: requestId,
+      attachment_type: type,
+      file_name: file.name,
+      file_url: `proof-documents/${path}`,
+      file_size: file.size,
+      uploaded_by: userId,
+    })
+    if (insertError) {
+      console.error("첨부파일 정보 저장 실패:", insertError)
+      failed.push(file.name)
+    }
+  }
+  return failed
+}
+
 // 사무용품비/도서구입비/장비임차료 아이템 타입
 type OfficeItemType = {
   id: string
@@ -89,12 +133,11 @@ export default function NewPurchaseRequestPage() {
   const [outsourcingType, setOutsourcingType] = useState("")
   const [companyName, setCompanyName] = useState("")
   const [companyContact, setCompanyContact] = useState("")
-  // TODO: 선택한 첨부파일(견적서·추가서류·교육계획서·용역 서류)은 아직 제출 시 업로드되지 않음
-  const [, setQuoteFile] = useState<File | null>(null)
-  const [, setAdditionalFiles] = useState<File[]>([])
+  const [quoteFile, setQuoteFile] = useState<File | null>(null)
+  const [additionalFiles, setAdditionalFiles] = useState<File[]>([])
 
   // 위탁교육비 필드
-  const [, setEducationPlanFile] = useState<File | null>(null)
+  const [educationPlanFile, setEducationPlanFile] = useState<File | null>(null)
   const [educationCourses, setEducationCourses] = useState<EducationCourse[]>([
     { courseName: "", courseLink: "", accountId: "", accountPassword: "" }
   ])
@@ -105,7 +148,7 @@ export default function NewPurchaseRequestPage() {
   const [serviceCompanyName, setServiceCompanyName] = useState("")
   const [serviceContactEmail, setServiceContactEmail] = useState("")
   const [serviceContactPhone, setServiceContactPhone] = useState("")
-  const [, setServiceFiles] = useState<File[]>([])
+  const [serviceFiles, setServiceFiles] = useState<File[]>([])
 
   // 홍보비 필드
   const [promotionName, setPromotionName] = useState("")
@@ -259,7 +302,7 @@ export default function NewPurchaseRequestPage() {
           break
       }
 
-      const { error } = await supabase
+      const { data: requestData, error } = await supabase
         .from("purchase_requests")
         .insert({
           company_id: companyId,
@@ -273,8 +316,31 @@ export default function NewPurchaseRequestPage() {
           purpose: detailInfo || reason,
           status: "submitted",
         })
+        .select("id")
+        .single()
 
       if (error) throw error
+
+      // 선택한 구매분류의 첨부파일만 업로드 (분류를 바꾸기 전 선택한 파일은 제외)
+      const attachments: { file: File; type: AttachmentType }[] = []
+      if (category === "outsourcing_fee") {
+        if (quoteFile) attachments.push({ file: quoteFile, type: "quote" })
+        additionalFiles.forEach((file) => attachments.push({ file, type: "additional" }))
+      } else if (category === "education") {
+        if (educationPlanFile) attachments.push({ file: educationPlanFile, type: "education_plan" })
+      } else if (category === "service_fee") {
+        serviceFiles.forEach((file) => attachments.push({ file, type: "service_document" }))
+      }
+
+      const failedFiles = await uploadAttachments(supabase, requestData.id, user.id, attachments)
+      if (failedFiles.length > 0) {
+        alert(
+          `결제 및 구매 요청은 제출되었지만 첨부파일 ${failedFiles.length}건의 업로드에 실패했습니다.\n` +
+          `(${failedFiles.join(", ")})\n담당자에게 파일을 전달해주세요.`
+        )
+        router.push("/portal/purchase-requests")
+        return
+      }
 
       alert("결제 및 구매 요청이 제출되었습니다.")
       router.push("/portal/purchase-requests")
