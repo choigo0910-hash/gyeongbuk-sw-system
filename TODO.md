@@ -9,6 +9,7 @@
 ---
 
 ## 최종 업데이트
+**2026-11-05 10:01**
 **2026-10-13 16:58**
 **2026-10-13 15:35**
 **2026-10-13 15:26**
@@ -326,13 +327,16 @@
 ### ✅ 완료
 - 로그인 (admin@test.com)
 - 전체 빌드 성공 (TypeScript 타입 체크 통과)
+- **Phase 35 E2E 테스트 (2026-10-13)**: API 8개 시나리오 + UI 클릭 23개 시나리오 전부 통과
+  - 회원가입(CEO/팀원) → 승인 게이트 → 팀원 승인
+  - 기업서류·구매 증빙·환급 증빙 업로드 → 서명 URL 다운로드
+  - 결제 및 구매 요청 검토·승인 → 승인 후 증빙 제출
+  - 환급신청 검토·승인
+  - 서류 양식 다운로드 + 카운트 증가
+  - 기업 간 권한 분리, 익명 접근 차단
 
-### ⏸️ 보류 (기업 사용자 필요)
-- 예산서 작성/제출
-- 예산 검토
-- 결제 및 구매 요청 작성/제출
-- 증빙서류 제출
-- 환급신청 작성/제출
+### ⏸️ 미검증 (E2E 범위 밖)
+- 예산서 작성/제출 및 관리자 검토
 - 프로그램 신청
 - 확인서 발급
 
@@ -359,6 +363,8 @@
 
 **Supabase:** https://ngpankzsagiofueiloqc.supabase.co
 **개발 서버:** http://localhost:3000
+**프로덕션:** https://swstartup.com (Vercel, GitHub `main` 푸시 시 자동 배포)
+**GitHub:** https://github.com/choigo0910-hash/gyeongbuk-sw-system
 
 ---
 
@@ -370,7 +376,10 @@
 TODO.md 읽어보고 상태 알려줘.
 ```
 
-**다음 작업:** 추가 기능 개발 또는 버그 수정
+**다음 작업:**
+- [ ] **Supabase Auth URL Configuration 갱신** (사용자가 대시보드에서 직접): Site URL / Redirect URLs를 `https://swstartup.com`으로 — 미갱신 시 프로덕션에서 이메일 인증·비밀번호 재설정 링크가 localhost로 갈 수 있음
+- [ ] 미검증 기능 테스트: 예산서 작성·검토, 프로그램 신청, 확인서 발급
+- [ ] 추가 기능 개발 또는 버그 수정
 
 ---
 
@@ -1295,7 +1304,47 @@ Phase 32(RLS) + Phase 33(Storage private화)을 실제 API 수준에서 종단�
 #### 남은 작업
 - [x] **UI 테스트 데이터 정리 (2차)**: `bash /tmp/e2e-cleanup.sh` 재실행 — e2e 계정 3개, 기업 2개, UI 테스트로 생성된 서류/구매/환급/양식 행·파일 삭제
   - 완료 (2026-10-13): e2e 사용자 7명(고아 3명 포함)·기업 4곳·DB 행 전체·proof/refund/documents 버킷 파일 삭제. company-documents 버킷은 UI 업로드 파일명에 "e2e"가 없어 고아 12개 잔존 → Supabase Dashboard에서 수동 삭제, 버킷 비었음 최종 확인
-- [ ] **커밋 대기**: 마이그레이션 1건(20261013030000) + 앱 수정 5파일(company-documents 목록·검토, notifications, guidelines, upload) + TODO.md
+- [x] **커밋 완료** (`b57ff9e`, 2026-10-14): 마이그레이션 1건(20261013030000) + 앱 수정 5파일(company-documents 목록·검토, notifications, guidelines, upload) + TODO.md
+  - 같은 커밋에 playwright-core devDependency 추가(UI 클릭 테스트용) 포함
+
+---
+
+### Phase 36: Vercel 배포 오류 해결 및 프로덕션 도메인 연결 ✅ 완료 (2026-10-14)
+
+#### 문제 1: 500 `MIDDLEWARE_INVOCATION_FAILED`
+- 원인: Next.js 16에서 `middleware.ts`는 deprecated. Edge 런타임 실패 → `runtime: "nodejs"` 지정 시 Vercel이 ESM 파일을 CJS 로더로 읽어 크래시
+- 수정 (`229a06e`, `fc8d35c`):
+  - `middleware.ts` → **`src/proxy.ts`**로 이동 (src 디렉터리가 있으면 src/ 안에 있어야 함, 루트에 두면 무시됨)
+  - 내보내기 함수명 `middleware` → `proxy`
+  - `config.runtime` 제거 (proxy는 기본이 Node 런타임, 옵션 지정 시 에러)
+  - 로컬 프로덕션 빌드 검증: 공개 경로 200, 보호 경로 307 리다이렉트
+
+#### 문제 2: 사이트 전체 404 (`NOT_FOUND`, 런타임 로그 0건)
+- Next.js 16.2.10 → **16.4.0 업그레이드** (`0fae61f`) — 16.2.x 프록시 라우팅 버그 회피 시도 (`package.json`, `package-lock.json`)
+- 실제 원인: Vercel 프로젝트 Framework Preset이 **"Other"**로 잡혀 라우팅 매니페스트 미생성
+- 수정 (`47432d1`): `vercel.json`에 `{"framework": "nextjs"}` 지정
+
+#### 프로덕션 도메인
+- [x] 가비아 도메인 `swstartup.com` / `www.swstartup.com`을 budget-system 프로젝트에서 gyeongbuk-sw-system으로 이전 (DNS는 가비아 NS 유지, A/CNAME은 Vercel 엣지)
+- [x] Vercel prod env `NEXT_PUBLIC_APP_URL=https://swstartup.com` 갱신 및 재배포
+- [x] GitHub `main` 푸시 → Vercel 자동 배포 연동
+
+#### 진단 노트
+- 런타임 로그: `npx vercel logs --deployment <url>` (`--deployment` 플래그 필수)
+- 프리셋 확인: `npx vercel project inspect gyeongbuk-sw-system`
+- 배포 URL은 SSO Deployment Protection(302)이 걸려 있으므로 curl 검증은 프로덕션 도메인으로
+- `vercel link` 실행 시 `.env.local`이 Vercel env로 덮어써질 수 있음
+
+---
+
+### Phase 37: 랜딩 페이지 구현 ✅ 완료 (2026-10-16)
+
+- [x] **루트(`/`) 페이지를 서비스 랜딩 페이지로 교체** (`248c06b`, `src/app/page.tsx`)
+  - 기존: create-next-app 스타터 템플릿이 그대로 노출 → 도메인은 정상인데 "연결이 안 된" 것처럼 보이던 원인
+  - 구성: 히어로(사업 배지·CTA), 주요 기능 4카드, 이용 대상 3열, 푸터
+  - 기존 UI 컴포넌트(Button/Card)와 디자인 토큰 재사용
+- [x] swstartup.com 라이브 화면(본문·스크린샷)까지 확인
+  - 교훈: 배포 검증은 `<title>`만 보지 말고 본문/스크린샷까지 확인
 
 ---
 
