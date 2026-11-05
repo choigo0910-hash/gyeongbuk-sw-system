@@ -9,6 +9,7 @@
 ---
 
 ## 최종 업데이트
+**2026-11-05 23:18**
 **2026-11-05 19:16**
 **2026-11-05 18:14**
 **2026-11-05 17:20**
@@ -383,7 +384,7 @@ TODO.md 읽어보고 상태 알려줘.
 ```
 
 **다음 작업:**
-- [x] **Supabase Auth URL Configuration 갱신** (2026-11-05, 사용자가 대시보드에서 설정): Site URL `https://swstartup.com`, Redirect URLs `https://swstartup.com/**`, `https://www.swstartup.com/**`, `http://localhost:3000/**` — 앱은 emailRedirectTo를 지정하지 않아 이메일 링크가 Site URL 기준, 콜백 경로 `/auth/callback`
+- [ ] **Supabase Auth URL Configuration 갱신** (사용자가 대시보드에서 직접, 미완료): Authentication → URL Configuration — Site URL `https://swstartup.com`, Redirect URLs `https://swstartup.com/**`, `https://www.swstartup.com/**`, `http://localhost:3000/**` 추가. 앱은 emailRedirectTo를 지정하지 않아 이메일 링크가 Site URL 기준 — 미설정 시 인증·비밀번호 재설정 링크가 localhost로 감
 - [x] 미검증 기능 테스트: 예산서 작성·검토, 프로그램 신청, 확인서 발급 (Phase 38, 2026-11-05)
 - [ ] **운영 프로그램 일정 등록** (관리자 화면): 「경북 SW성장기업육성지원사업」 시작일·종료일 미설정 → 확인서 신청 불가 상태
 - [x] **Next.js 보안 업그레이드**: 16.4.0 → 16.4.5 (Phase 41, 2026-11-05)
