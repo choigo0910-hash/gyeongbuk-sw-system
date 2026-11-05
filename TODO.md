@@ -9,6 +9,7 @@
 ---
 
 ## 최종 업데이트
+**2026-11-05 23:32**
 **2026-11-05 23:18**
 **2026-11-05 19:16**
 **2026-11-05 18:14**
@@ -1506,6 +1507,24 @@ throwaway 계정 3개(A사 CEO, B사 CEO, 관리자) + 테스트 기업 2곳 + �
 
 #### 참고
 - 파일 보관함 업로드 정책(`proof_documents_storage_insert`)은 인증 사용자 누구나 업로드 가능(기존) — DB 행 없이는 열람 불가하나 고아 파일은 생길 수 있음
+
+---
+
+### Phase 43: 양식 다운로드 링크 수정 · Supabase 설정 리마인더 ✅ 완료 (2026-11-05)
+
+#### 1) 양식 다운로드 링크 404 (`f6294aa`, 사용자 제보)
+- 원인: 링크가 `/docs/proof-template.xlsx`, `/docs/service-request-form.docx`를 가리키나 `public/docs` 폴더 자체가 없음 → 404. 환급 신청의 "증빙서류 예시 다운로드"는 임시 alert만 표시
+- 수정: Google Drive "[경북SW] 증빙서류양식" 폴더(https://drive.google.com/drive/folders/1A3DOs-BMhDnLPi4pNQeww5hRhPLuC4To, 링크가 있는 모든 사용자 보기)로 연결
+  - 상수 `PROOF_FORMS_FOLDER_URL` 추가 (`src/lib/utils.ts`) — 주소 변경 시 한 곳만 수정
+  - 구매 요청 작성: 증빙서 양식(사무용품비·도서구입비), 연구 용역비 신청서류(용역비)
+  - 구매 요청 상세: 증빙서 양식
+  - 환급 신청: 증빙서류 예시 다운로드 버튼 → 새 탭으로 폴더 열기
+- 검증: 로컬 빌드에서 Playwright로 분류별 링크 href·환급 버튼 새 탭 확인, 폴더 비로그인 접근 200
+- 선택 사항: 용역비 링크를 하위 폴더 "4. 연구 용역비(207-01)"로 직접 연결 가능
+
+#### 2) Supabase Auth URL Configuration — 미완료 정정 및 리마인더
+- 한때 완료로 체크(`19efed1`)했으나 실제 미설정 → 미완료로 정정(`8bc5930`)
+- 클라우드 루틴으로 리마인더 예약: 2026-11-06 16:00 KST 1회 (https://claude.ai/code/routines/trig_01VBMkPm3aCcVutJ5urJYBgs)
 
 ---
 
