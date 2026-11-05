@@ -9,6 +9,7 @@
 ---
 
 ## 최종 업데이트
+**2026-11-05 16:32**
 **2026-11-05 13:55**
 **2026-11-05 10:01**
 **2026-10-13 16:58**
@@ -1387,6 +1388,37 @@ throwaway 계정 3개(A사 CEO, B사 CEO, 관리자) + 테스트 기업 2곳 + �
 #### 검증 노트
 - 마이그레이션 적용 확인은 `supabase migration list`의 remote 값으로 (push 출력에 `Applying migration` 줄이 없으면 미적용)
 - 트리거는 `auth.uid() IS NULL`(service role)일 때 보호 검사를 건너뜀 → 테스트 셋업·정리는 service role로
+
+---
+
+### Phase 39: 환급신청 제출 실패 수정 · 결제 내역 저장 · 상태 전이 강제 ✅ 완료 (2026-11-05)
+
+#### 1) 제출·임시저장 항상 실패 (`77384ea`)
+- 증상: 환급신청 제출 시 "제출에 실패했습니다" (사용자 제보)
+- 원인: `refund_applications.payment_method`가 NOT NULL(2026-07 생성 시부터)인데 신청 폼에 입력란이 없음 → 23502
+- 수정: 결제 정보마다 **결제수단**(카드/계좌이체/현금, 상세·검토 화면 라벨과 동일 코드) 선택 추가, 필수 검증 (`src/app/portal/refunds/new/page.tsx`)
+
+#### 2) 결제 내역 2건째부터 유실 (`42c95af`)
+- 원인: 폼은 결제 내역을 여러 건 받지만 `refund_payments` 테이블이 없어 저장 실패(앱은 console.error만) → 신청 금액은 합계인데 상세는 첫 건만 남음
+- 마이그레이션 `20261105010000_create_refund_payments.sql`: 테이블 + RLS (기업 멤버는 draft/submitted 신청에만 추가, 수정·삭제는 관리자), `amount >= 0` CHECK
+- 앱: 제출·임시저장 모두 결제 내역 전체(첫 건 포함)를 sort_order 순 저장, 실패 시 에러 표시
+- 신규 컴포넌트 `src/components/refunds/refund-payments-card.tsx` — 포털 상세·관리자 검토 화면에 결제 내역 표(2건 이상일 때)
+- `refund_applications`의 첫 건 컬럼(payment_date/vendor/…)은 기존 화면 호환을 위해 계속 기록
+
+#### 3) 환급 신청서 상태 전이 강제
+- 적용 전 테스트로 구멍 8건 확인: 기업 사용자가 자기 신청을 approved/completed(지급완료)로 변경, approved 상태·승인 금액으로 생성, 제출 후 수정, 승인 후 증빙 추가, 승인 금액 위조, 반려 건 되살리기
+- 마이그레이션 `20261105020000_enforce_refund_state_transitions.sql`
+  - refund_applications: 기업 사용자는 draft/revision_requested 행만 수정, 새 상태는 draft/submitted만
+  - 트리거 `guard_refund_review_columns`: 승인·지급 금액, 검토/승인/지급자·일시, 반려 사유는 관리자만
+  - refund_proof_documents: 기업 사용자는 draft/submitted 신청에만 증빙 추가
+- 앱 코드 변경 없음 (포털은 생성만, 상태 변경은 관리자 검토 화면만)
+
+#### 테스트
+- 환급 E2E 29개 시나리오 전부 통과 (제출·임시저장·결제 내역·권한 분리·상태 전이·관리자 승인/지급/반려)
+- 테스트 데이터 전부 삭제 확인, npm run build 통과
+
+#### 남은 점검 후보
+- [ ] `purchase_requests`(결제 및 구매 요청)도 같은 유형 점검 필요 — 정책이 기업 멤버 여부만 검사 (`purchase_requests_update`)
 
 ---
 
