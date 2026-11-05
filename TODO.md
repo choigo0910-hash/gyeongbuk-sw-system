@@ -4,11 +4,12 @@
 
 **프로젝트명:** gyeongbuk-sw-system
 **시작일:** 2026-07-11
-**기술 스택:** Next.js 16, TypeScript, Tailwind CSS v4, shadcn/ui, Supabase, Resend
+**기술 스택:** Next.js 16 (16.4.5), TypeScript, Tailwind CSS v4, shadcn/ui, Supabase, Resend, SheetJS(xlsx 0.20.3)
 
 ---
 
 ## 최종 업데이트
+**2026-11-05 17:20**
 **2026-11-05 16:58**
 **2026-11-05 16:32**
 **2026-11-05 13:55**
@@ -383,7 +384,10 @@ TODO.md 읽어보고 상태 알려줘.
 - [ ] **Supabase Auth URL Configuration 갱신** (사용자가 대시보드에서 직접): Site URL / Redirect URLs를 `https://swstartup.com`으로 — 미갱신 시 프로덕션에서 이메일 인증·비밀번호 재설정 링크가 localhost로 갈 수 있음
 - [x] 미검증 기능 테스트: 예산서 작성·검토, 프로그램 신청, 확인서 발급 (Phase 38, 2026-11-05)
 - [ ] **운영 프로그램 일정 등록** (관리자 화면): 「경북 SW성장기업육성지원사업」 시작일·종료일 미설정 → 확인서 신청 불가 상태
-- [ ] **Next.js 보안 업그레이드**: 16.4.0에 알려진 취약점 (빌드 시 경고, 최신 16.4.5)
+- [x] **Next.js 보안 업그레이드**: 16.4.0 → 16.4.5 (Phase 41, 2026-11-05)
+- [x] **xlsx 취약점 해소**: SheetJS 공식 배포판 0.20.3으로 교체 (Phase 41)
+- [ ] **린트 정리**: `npm run lint` 307건(오류 141, 경고 166) — 빌드는 통과
+- [ ] **개발 의존성 경고 8건**(moderate, typescript-eslint/minimatch): npm 제안 해결책이 eslint-config-next 15로 다운그레이드라 보류 — 상위 패키지 수정 대기
 - [ ] 추가 기능 개발 또는 버그 수정
 
 ---
@@ -1440,6 +1444,33 @@ throwaway 계정 3개(A사 CEO, B사 CEO, 관리자) + 테스트 기업 2곳 + �
 #### 테스트
 - 구매 요청 26개 시나리오 전부 통과 + 회귀: 예산서·프로그램·확인서 57/57, 환급 29/29
 - 테스트 데이터 전부 삭제 확인, npm run build 통과
+
+---
+
+### Phase 41: 의존성 보안 업그레이드 및 엑셀 템플릿 다운로드 수정 ✅ 완료 (2026-11-05)
+
+#### 1) Next.js 16.4.0 → 16.4.5 (`51ebb88`)
+- 빌드 시 `SecurityFatalError`(16.4.0 알려진 취약점) 경고 → `next@16.4.5`
+- `eslint-config-next`도 16.2.10 → 16.4.5로 맞춤 (Next와 버전 불일치 상태였음)
+
+#### 2) xlsx 0.18.5 → SheetJS 공식 배포판 0.20.3 (`a9ad8e4`)
+- npm 레지스트리 xlsx는 0.18.5에서 갱신 중단, 고위험 취약점(프로토타입 오염 CVE-2023-30533, ReDoS CVE-2024-22363) 보유
+- `package.json`: `"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"` (버전 고정 URL, API 동일 → 코드 변경 없음)
+- 주의: 새 버전은 패키지 `exports` 제한으로 `require('xlsx/package.json')` 불가, Node에서 `XLSX.writeFile`은 `XLSX.set_fs(fs)` 필요 — 앱은 서버에서 `XLSX.write`(buffer)/`XLSX.read`(array)만 사용하므로 영향 없음 (`src/lib/excel.ts`의 `downloadBudgetTemplate`/`exportBudgetToExcel`은 미사용)
+
+#### 3) 관리자 예산서 템플릿 다운로드 500 오류 (`a9ad8e4`, 초기 커밋부터 존재)
+- 원인: `Content-Disposition`에 한글 파일명을 그대로 넣어 ByteString 변환 실패 (`TypeError: Cannot convert argument to a ByteString`)
+- 수정: `filename="budget_template.xlsx"; filename*=UTF-8''<인코딩된 예산서_템플릿.xlsx>` (RFC 5987) — `src/app/api/admin/budgets/template/route.ts`
+
+#### 4) 하위 의존성 정리 (`1ac77f1`)
+- `npm audit fix` → source-map-js, baseline-browser-mapping 갱신 (package-lock.json만)
+- **운영 의존성 취약점 0건** (`npm audit --omit=dev`)
+- 잔여: 개발 의존성 moderate 8건(typescript-eslint/minimatch, 린트 도구) — 해결책이 eslint-config-next 15 다운그레이드라 보류
+
+#### 검증
+- npm run build 통과 (Next.js 16.4.5)
+- 로컬 프로덕션 서버(`next start`) + 테스트 관리자 세션 쿠키로 API 직접 호출: 템플릿 다운로드 200(xlsx) → 같은 파일로 엑셀 가져오기 200(예산서 1건·항목 3건, 합계 3,350,000원), 비로그인 307 → 테스트 데이터 삭제
+- Vercel 프로덕션 배포 Ready, swstartup.com 200
 
 ---
 
