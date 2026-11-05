@@ -43,8 +43,16 @@ interface PaymentInfo {
   vendor: string
   purpose: string
   category: string
+  paymentMethod: string
   amount: number
 }
+
+// refund_applications.payment_method (NOT NULL) — 상세/검토 화면 라벨과 동일한 코드
+const paymentMethods = [
+  { value: "card", label: "카드" },
+  { value: "bank_transfer", label: "계좌이체" },
+  { value: "cash", label: "현금" },
+]
 
 // ID 생성을 위한 카운터 (서버/클라이언트 간 일치)
 let paymentIdCounter = 0
@@ -66,6 +74,7 @@ export default function NewRefundApplicationPage() {
       vendor: "",
       purpose: "",
       category: "",
+      paymentMethod: "",
       amount: 0,
     },
   ])
@@ -103,6 +112,7 @@ export default function NewRefundApplicationPage() {
         vendor: "",
         purpose: "",
         category: "",
+        paymentMethod: "",
         amount: 0,
       },
     ])
@@ -135,7 +145,7 @@ export default function NewRefundApplicationPage() {
 
   // 임시저장
   const handleSaveDraft = async () => {
-    if (!recipientName || payments.some((p) => !p.paymentDate || !p.vendor || !p.purpose || !p.category || p.amount <= 0)) {
+    if (!recipientName || payments.some((p) => !p.paymentDate || !p.vendor || !p.purpose || !p.category || !p.paymentMethod || p.amount <= 0)) {
       alert("필수 항목을 입력해주세요.")
       return
     }
@@ -175,6 +185,7 @@ export default function NewRefundApplicationPage() {
           vendor: payments[0].vendor,
           purpose: payments[0].purpose,
           category: payments[0].category,
+          payment_method: payments[0].paymentMethod,
           bank_name: bankName || null,
           bank_account: bankAccount || null,
           bank_holder: bankHolder || null,
@@ -200,7 +211,7 @@ export default function NewRefundApplicationPage() {
       return
     }
 
-    if (payments.some((p) => !p.paymentDate || !p.vendor || !p.purpose || !p.category || p.amount <= 0)) {
+    if (payments.some((p) => !p.paymentDate || !p.vendor || !p.purpose || !p.category || !p.paymentMethod || p.amount <= 0)) {
       alert("모든 결제 정보의 필수 항목을 입력해주세요.")
       return
     }
@@ -262,6 +273,7 @@ export default function NewRefundApplicationPage() {
           vendor: payments[0].vendor,
           purpose: payments[0].purpose,
           category: payments[0].category,
+          payment_method: payments[0].paymentMethod,
           bank_name: bankName,
           bank_account: bankAccount,
           bank_holder: bankHolder,
@@ -475,6 +487,25 @@ export default function NewRefundApplicationPage() {
                     {categories.map((cat) => (
                       <SelectItem key={cat.value} value={cat.value}>
                         {cat.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor={`paymentMethod-${payment.id}`}>결제수단 *</Label>
+                <Select
+                  value={payment.paymentMethod}
+                  onValueChange={(value) => updatePayment(payment.id, "paymentMethod", value)}
+                >
+                  <SelectTrigger id={`paymentMethod-${payment.id}`}>
+                    <SelectValue placeholder="결제수단 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {paymentMethods.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
