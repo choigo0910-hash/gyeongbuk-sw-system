@@ -130,21 +130,30 @@ export default function NewCertificatePage() {
 
       const program = completedPrograms.find((p) => p.application_id === selectedProgram)
 
+      // 확인서에는 교육 기간이 필수 — 프로그램 일정 미등록 시 신청 불가
+      if (!program?.program_start_at || !program?.program_end_at) {
+        alert("프로그램 일정이 등록되지 않아 확인서를 신청할 수 없습니다. 관리자에게 문의해주세요.")
+        return
+      }
+
+      // 임시 번호/코드는 UNIQUE 컬럼이라 신청마다 고유값 사용 (RLS상 PENDING- 접두 필수)
+      const pendingId = crypto.randomUUID()
+
       // 확인서 레코드 생성 (상태는 requested, 관리자 승인 후 issued로 변경)
       const { error } = await supabase
         .from("certificates")
         .insert({
           application_id: selectedProgram,
-          document_number: "PENDING-" + Date.now(), // 임시 번호, 승인 시 정식 번호 부여
+          document_number: "PENDING-" + pendingId, // 임시 번호, 승인 시 정식 번호 부여
           participant_name: participantName,
           affiliation: affiliation,
-          program_name: program?.program_name || "",
-          program_start_at: program?.program_start_at || "",
-          program_end_at: program?.program_end_at || "",
-          location: program?.location || null,
+          program_name: program.program_name,
+          program_start_at: program.program_start_at,
+          program_end_at: program.program_end_at,
+          location: program.location || null,
           issued_at: new Date().toISOString(),
           issued_by: user.id,
-          verification_code: "PENDING", // 임시 코드, 승인 시 정식 코드 부여
+          verification_code: "PENDING-" + pendingId, // 임시 코드, 승인 시 정식 코드 부여
         })
 
       if (error) throw error

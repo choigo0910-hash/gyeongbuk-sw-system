@@ -213,15 +213,14 @@ export default function NewBudgetPage() {
 
       const actualCompanyId = companies?.[0]?.company_id || ""
 
-      // budget 생성 (submitted 상태)
+      // budget 생성 (draft로 생성 → 항목 저장 → submitted 전환)
+      // RLS상 항목은 draft/보완요청 예산서에만 추가 가능
       const { data: budget, error: budgetError } = await supabase
         .from("budgets")
         .insert({
           company_id: actualCompanyId,
           fiscal_year: fiscalYear,
-          status: "submitted",
-          submitted_by: user.id,
-          submitted_at: new Date().toISOString(),
+          status: "draft",
           total_amount: totalAmount,
           note: note || null,
         })
@@ -248,6 +247,17 @@ export default function NewBudgetPage() {
         .insert(itemsToInsert)
 
       if (itemsError) throw itemsError
+
+      const { error: submitError } = await supabase
+        .from("budgets")
+        .update({
+          status: "submitted",
+          submitted_by: user.id,
+          submitted_at: new Date().toISOString(),
+        })
+        .eq("id", budget.id)
+
+      if (submitError) throw submitError
 
       alert("예산서가 제출되었습니다.")
       router.push("/portal/budgets")

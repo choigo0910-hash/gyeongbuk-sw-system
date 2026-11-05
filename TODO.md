@@ -9,6 +9,7 @@
 ---
 
 ## 최종 업데이트
+**2026-11-05 13:55**
 **2026-11-05 10:01**
 **2026-10-13 16:58**
 **2026-10-13 15:35**
@@ -335,10 +336,10 @@
   - 서류 양식 다운로드 + 카운트 증가
   - 기업 간 권한 분리, 익명 접근 차단
 
-### ⏸️ 미검증 (E2E 범위 밖)
-- 예산서 작성/제출 및 관리자 검토
-- 프로그램 신청
-- 확인서 발급
+- **Phase 38 E2E 테스트 (2026-11-05)**: 예산서·프로그램 신청·확인서 발급 57개 시나리오 전부 통과 (권한 우회 시도 포함)
+  - 예산서 작성·임시저장·제출 → 관리자 승인·보완요청·반려 → 재제출, 감사로그·알림
+  - 프로그램 생성 → 신청·중복 방지 → 승인·반려·이수 완료
+  - 확인서 신청 → 관리자 승인(정식 번호 SW-YYYY-NNNNN)
 
 ---
 
@@ -378,7 +379,9 @@ TODO.md 읽어보고 상태 알려줘.
 
 **다음 작업:**
 - [ ] **Supabase Auth URL Configuration 갱신** (사용자가 대시보드에서 직접): Site URL / Redirect URLs를 `https://swstartup.com`으로 — 미갱신 시 프로덕션에서 이메일 인증·비밀번호 재설정 링크가 localhost로 갈 수 있음
-- [ ] 미검증 기능 테스트: 예산서 작성·검토, 프로그램 신청, 확인서 발급
+- [x] 미검증 기능 테스트: 예산서 작성·검토, 프로그램 신청, 확인서 발급 (Phase 38, 2026-11-05)
+- [ ] **운영 프로그램 일정 등록** (관리자 화면): 「경북 SW성장기업육성지원사업」 시작일·종료일 미설정 → 확인서 신청 불가 상태
+- [ ] **Next.js 보안 업그레이드**: 16.4.0에 알려진 취약점 (빌드 시 경고, 최신 16.4.5)
 - [ ] 추가 기능 개발 또는 버그 수정
 
 ---
@@ -1345,6 +1348,45 @@ Phase 32(RLS) + Phase 33(Storage private화)을 실제 API 수준에서 종단�
   - 기존 UI 컴포넌트(Button/Card)와 디자인 토큰 재사용
 - [x] swstartup.com 라이브 화면(본문·스크린샷)까지 확인
   - 교훈: 배포 검증은 `<title>`만 보지 말고 본문/스크린샷까지 확인
+
+---
+
+### Phase 38: 예산서·프로그램 신청·확인서 E2E 테스트 및 상태 전이 강제 ✅ 완료 (2026-11-05)
+
+throwaway 계정 3개(A사 CEO, B사 CEO, 관리자) + 테스트 기업 2곳 + 테스트 프로그램 1개로 앱과 동일한 쿼리를 사용자 JWT로 실행. 1차 48개 중 13개 실패 → 수정 후 57개 전부 통과. 테스트 데이터 전부 삭제 확인.
+
+#### 발견한 문제
+- 🔴 **권한 우회 4건** (화면은 막혀 있으나 API 직접 호출로 가능) — RLS가 "누구 데이터인가"만 검사하고 "어떤 상태로 바꾸는가"는 미검사
+  1. 기업 사용자가 자기 예산서를 `approved`로 변경 / `approved` 상태로 생성
+  2. 승인된 예산서·항목 금액을 기업 사용자가 수정
+  3. 신청자가 자기 프로그램 신청을 `completed`로 변경 → 확인서 자격 획득
+  4. 미이수 신청 건으로 확인서 신청, 정식 문서번호(SW-) 위조 신청
+- 🟠 **기능 버그 6건**
+  5. 확인서 동시 신청 불가: `verification_code`(UNIQUE)에 고정값 `"PENDING"` → 대기 1건 있으면 다른 신청 전부 23505
+  6. 운영 프로그램(시작일 NULL)으로 확인서 신청 시 `""` → timestamptz 에러
+  7. `generate_document_number()` 변수명·컬럼명 충돌("ambiguous") → 앱이 타임스탬프 대체번호 사용
+  8. 예산 승인 감사로그 미기록 (audit_logs INSERT 정책 부재, 앱이 에러 무시)
+  9. 같은 프로그램 중복 신청 허용 (upsert에 충돌 키 없음)
+  10. 관리자 이수 완료 처리 시 `completed_at` 미기록
+
+#### 수정
+- **마이그레이션** `supabase/migrations/20261105000000_enforce_state_transitions.sql` (live DB 적용 완료)
+  - budgets: 기업 사용자는 draft/revision_requested 행만 수정, 새 상태는 draft/submitted만. 트리거 `guard_budget_review_columns`로 검토·승인 컬럼은 관리자만
+  - budget_items: 부모 예산서가 draft/revision_requested일 때만 기업 사용자 추가·수정
+  - program_applications: 신청자는 draft/submitted만. 트리거 `handle_program_application_review`로 심사 컬럼 보호 + 관리자 상태 변경 시 reviewed/approved/completed 일시 자동 기록. `UNIQUE (program_id, applicant_id)`
+  - certificates: `pa.status = 'completed'` + `PENDING-` 접두 번호·코드 + `pdf_path IS NULL`일 때만 신청
+  - `generate_document_number()` 재작성 (SECURITY DEFINER, `SW-YYYY-NNNNN` 형식만 집계)
+  - audit_logs: 관리자 본인 명의 INSERT 정책
+- **앱 수정**
+  - `src/app/portal/budgets/new/page.tsx`: 바로 제출을 draft 생성 → 항목 저장 → submitted 전환으로 변경
+  - `src/app/portal/programs/[id]/page.tsx`: upsert → insert, 23505 시 "이미 신청한 프로그램입니다" 안내
+  - `src/app/portal/certificates/new/page.tsx`: 임시 번호·코드 `PENDING-<uuid>`, 프로그램 일정 미등록 시 신청 차단·안내
+  - `src/app/portal/certificates/[id]/page.tsx`: 임시 번호 판별을 `startsWith("PENDING")`으로 (기존엔 `PENDING-123`이 그대로 노출)
+- npm run build 통과 ("✓ Compiled successfully")
+
+#### 검증 노트
+- 마이그레이션 적용 확인은 `supabase migration list`의 remote 값으로 (push 출력에 `Applying migration` 줄이 없으면 미적용)
+- 트리거는 `auth.uid() IS NULL`(service role)일 때 보호 검사를 건너뜀 → 테스트 셋업·정리는 service role로
 
 ---
 

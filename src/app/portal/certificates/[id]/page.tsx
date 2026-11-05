@@ -93,7 +93,7 @@ export default function CertificateDetailPage() {
   }
 
   const verifyCertificate = () => {
-    if (certificate?.verification_code && certificate.verification_code !== "PENDING") {
+    if (certificate?.verification_code && !certificate.verification_code.startsWith("PENDING")) {
       window.open(`/verify/${certificate.verification_code}`, "_blank")
     }
   }
@@ -134,7 +134,7 @@ export default function CertificateDetailPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* 문서번호 */}
-          {certificate.document_number && certificate.document_number !== "PENDING" && (
+          {certificate.document_number && !certificate.document_number.startsWith("PENDING") && (
             <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
               <div>
                 <span className="text-sm text-muted-foreground">문서번호</span>
@@ -187,7 +187,7 @@ export default function CertificateDetailPage() {
           </div>
 
           {/* 인증코드 */}
-          {certificate.verification_code && certificate.verification_code !== "PENDING" && (
+          {certificate.verification_code && !certificate.verification_code.startsWith("PENDING") && (
             <div className="flex justify-between items-center p-4 bg-blue-50 rounded-lg">
               <div>
                 <span className="text-sm text-muted-foreground">인증코드</span>

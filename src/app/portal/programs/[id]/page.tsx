@@ -170,7 +170,7 @@ export default function ProgramDetailPage() {
 
       const { error } = await supabase
         .from("program_applications")
-        .upsert({
+        .insert({
           program_id: id,
           applicant_id: user.id,
           company_id: companyId,
@@ -178,6 +178,12 @@ export default function ProgramDetailPage() {
           application_data: applicationData,
         })
 
+      // (program_id, applicant_id) UNIQUE 위반 = 이미 신청함
+      if (error?.code === "23505") {
+        alert("이미 신청한 프로그램입니다.")
+        fetchUserApplication()
+        return
+      }
       if (error) throw error
 
       alert("신청이 완료되었습니다.")
