@@ -35,7 +35,8 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': 'attachment; filename="예산서_템플릿.xlsx"',
+        // HTTP 헤더는 ASCII만 허용 — 한글 파일명은 RFC 5987(filename*)로 인코딩
+        'Content-Disposition': `attachment; filename="budget_template.xlsx"; filename*=UTF-8''${encodeURIComponent('예산서_템플릿.xlsx')}`,
       },
     })
 
