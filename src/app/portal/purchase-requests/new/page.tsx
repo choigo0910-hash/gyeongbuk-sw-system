@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, PROOF_FORMS_FOLDER_URL } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -366,7 +366,7 @@ export default function NewPurchaseRequestPage() {
                 <p>본 사업은 SW기업 지원을 위한 사업이므로 목적과 맞지 않은 요청사항은 반려될 수 있습니다.</p>
                 <p>물품을 받고 나서 반드시 사진을 찍어 증빙서에 사진을 넣어 올려주세요.</p>
                 <Button variant="link" className="p-0 h-auto text-sm" asChild>
-                  <a href="/docs/proof-template.xlsx" target="_blank" rel="noopener noreferrer">
+                  <a href={PROOF_FORMS_FOLDER_URL} target="_blank" rel="noopener noreferrer">
                     증빙서 양식 다운로드 →
                   </a>
                 </Button>
@@ -396,7 +396,7 @@ export default function NewPurchaseRequestPage() {
                 <p>본 사업은 SW기업 지원을 위한 사업이므로 목적과 맞지 않은 요청사항은 반려될 수 있습니다.</p>
                 <p>도서를 받고 나서 반드시 사진을 찍어 증빙서에 사진을 넣어 올려주세요.</p>
                 <Button variant="link" className="p-0 h-auto text-sm" asChild>
-                  <a href="/docs/proof-template.xlsx" target="_blank" rel="noopener noreferrer">
+                  <a href={PROOF_FORMS_FOLDER_URL} target="_blank" rel="noopener noreferrer">
                     증빙서 양식 다운로드 →
                   </a>
                 </Button>
@@ -427,7 +427,7 @@ export default function NewPurchaseRequestPage() {
                 <p>용역비는 포스텍 구매팀에서 진행하며, 계약 진행은 1-2주 정도 소요될 수 있습니다.</p>
                 <p>선금 지급은 불가능하니 이 점 참고하여 계획을 수립해주세요.</p>
                 <Button variant="link" className="p-0 h-auto text-sm" asChild>
-                  <a href="/docs/service-request-form.docx" target="_blank" rel="noopener noreferrer">
+                  <a href={PROOF_FORMS_FOLDER_URL} target="_blank" rel="noopener noreferrer">
                     연구 용역비 신청서류 다운로드 →
                   </a>
                 </Button>

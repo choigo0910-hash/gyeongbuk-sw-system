@@ -118,3 +118,8 @@ export function sanitizeFilename(filename: string): string {
     .trim()
     .substring(0, 255) // Limit length
 }
+
+// [경북SW] 증빙서류양식 Google Drive 폴더 (링크가 있는 모든 사용자 보기 가능)
+// 증빙서 양식·연구 용역비 신청서류 등 하위 폴더별로 정리되어 있음
+export const PROOF_FORMS_FOLDER_URL =
+  "https://drive.google.com/drive/folders/1A3DOs-BMhDnLPi4pNQeww5hRhPLuC4To?usp=drive_link"

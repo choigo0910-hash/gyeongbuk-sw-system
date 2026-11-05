@@ -5,7 +5,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, PROOF_FORMS_FOLDER_URL } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -159,8 +159,8 @@ export default function NewRefundApplicationPage() {
 
   // 증빙서류 예시 다운로드
   const handleDownloadSample = () => {
-    // TODO: 실제 예시 파일을 public 폴더에 두고 다운로드
-    alert("증빙서류 예시 파일을 다운로드합니다.\n(실제 구현 시 public/docs/refund-sample.pdf 등에서 제공)")
+    // 증빙서류 양식·예시는 Google Drive 공유 폴더에서 제공
+    window.open(PROOF_FORMS_FOLDER_URL, "_blank", "noopener,noreferrer")
   }
 
   // 임시저장

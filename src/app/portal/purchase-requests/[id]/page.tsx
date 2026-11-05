@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, PROOF_FORMS_FOLDER_URL } from "@/lib/utils"
 import { getSignedFileUrl } from "@/lib/storage"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -508,7 +508,7 @@ export default function PurchaseRequestDetailPage() {
               </div>
 
               <Button asChild variant="link" className="p-0 h-auto text-sm">
-                <a href="/docs/proof-template.xlsx" target="_blank" rel="noopener noreferrer">
+                <a href={PROOF_FORMS_FOLDER_URL} target="_blank" rel="noopener noreferrer">
                   증빙서 양식 다운로드 →
                 </a>
               </Button>
