@@ -1,9 +1,15 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import * as XLSX from 'xlsx'
 import { generateBudgetTemplate } from "@/lib/excel"
 import { createClient } from "@/lib/supabase/server"
 
-export async function GET(request: NextRequest) {
+// user_roles + roles(code) 조인 결과 행
+interface UserRoleRow {
+  role_id: string
+  roles: { code: string } | null
+}
+
+export async function GET() {
   try {
     const supabase = await createClient()
 
@@ -19,7 +25,7 @@ export async function GET(request: NextRequest) {
       .select("role_id, roles(code)")
       .eq("user_id", user.id)
 
-    const isAdmin = userRoles?.some((ur: any) => ur.roles?.code === "admin" || ur.roles?.code === "super_admin")
+    const isAdmin = (userRoles as UserRoleRow[] | null)?.some((ur) => ur.roles?.code === "admin" || ur.roles?.code === "super_admin")
     if (!isAdmin) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }

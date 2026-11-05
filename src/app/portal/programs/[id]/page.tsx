@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -31,8 +32,18 @@ interface UserApplication {
   id: string
   program_id: string
   status: string
-  application_data: Record<string, any> | null
+  application_data: ApplicationFormData | null
   created_at: string
+}
+
+// program_applications.application_data 에 저장되는 신청서 폼 값
+interface ApplicationFormData {
+  applicantName?: string
+  applicantPhone?: string
+  applicantEmail?: string
+  companyAffiliation?: string
+  position?: string
+  specialNote?: string
 }
 
 const statusLabels: Record<string, string> = {
@@ -73,12 +84,7 @@ export default function ProgramDetailPage() {
   const [specialNote, setSpecialNote] = useState("")
   const [agree, setAgree] = useState(false)
 
-  useEffect(() => {
-    fetchProgramDetail()
-    fetchUserApplication()
-  }, [id])
-
-  const fetchProgramDetail = async () => {
+  const fetchProgramDetail = useCallback(async () => {
     try {
       const supabase = createClient()
       const { data, error } = await supabase
@@ -94,9 +100,9 @@ export default function ProgramDetailPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
 
-  const fetchUserApplication = async () => {
+  const fetchUserApplication = useCallback(async () => {
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -112,7 +118,7 @@ export default function ProgramDetailPage() {
 
       if (data) {
         setUserApplication(data as UserApplication)
-        const appData = data.application_data as any
+        const appData = data.application_data as ApplicationFormData | null
         if (appData) {
           setApplicantName(appData.applicantName || "")
           setApplicantPhone(appData.applicantPhone || "")
@@ -122,10 +128,16 @@ export default function ProgramDetailPage() {
           setSpecialNote(appData.specialNote || "")
         }
       }
-    } catch (error) {
+    } catch {
       // 신청 내역이 없는 경우 (정상)
     }
-  }
+  }, [id])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트 시 데이터 조회 패턴 (setState는 await 이후에만 실행)
+    fetchProgramDetail()
+    fetchUserApplication()
+  }, [fetchProgramDetail, fetchUserApplication])
 
   const handleSubmitApplication = async () => {
     if (!applicantName || !applicantPhone || !applicantEmail || !companyAffiliation || !position) {
@@ -228,7 +240,7 @@ export default function ProgramDetailPage() {
           <h1 className="text-3xl font-bold">프로그램 상세</h1>
         </div>
         <Button variant="outline" asChild>
-          <a href="/portal/programs">목록으로</a>
+          <Link href="/portal/programs">목록으로</Link>
         </Button>
       </div>
 

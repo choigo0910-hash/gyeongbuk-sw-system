@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { formatCurrency } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { CurrencyInput } from "@/components/ui/currency-input"
 import { Label } from "@/components/ui/label"
@@ -71,7 +71,6 @@ export default function EditPurchaseRequestPage() {
   const id = params.id as string
 
   const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
 
   // 공통 필드
@@ -118,19 +117,18 @@ export default function EditPurchaseRequestPage() {
   const isContactOnly = currentCategory?.contactRequired || false
 
   // 사무용품비/도서구입비/장비임차료일 때 금액 합계 자동 계산
-  useEffect(() => {
+  // (effect 대신 렌더 중 이전 값과 비교하여 변경 시에만 갱신 — 다른 카테고리에서는 수동 입력값 유지)
+  const [prevAmountSource, setPrevAmountSource] = useState({ officeItems, category })
+  if (prevAmountSource.officeItems !== officeItems || prevAmountSource.category !== category) {
+    setPrevAmountSource({ officeItems, category })
     if (category === "office_supplies" || category === "books" || category === "equipment_rent") {
       const sum = officeItems.reduce((total, item) => total + item.amount, 0)
       setTotalAmount(sum)
     }
-  }, [officeItems, category])
+  }
 
   // 기존 데이터 로드
-  useEffect(() => {
-    fetchRequestData()
-  }, [id])
-
-  const fetchRequestData = async () => {
+  const fetchRequestData = useCallback(async () => {
     try {
       const supabase = createClient()
       const { data, error } = await supabase
@@ -147,9 +145,6 @@ export default function EditPurchaseRequestPage() {
         router.push(`/portal/purchase-requests/${id}`)
         return
       }
-
-      // 반려 상태인 경우 안내 메시지
-      const isRejected = data.status === "rejected"
 
       // purpose JSON 파싱하여 각 필드에 값 설정
       if (data.purpose) {
@@ -189,7 +184,15 @@ export default function EditPurchaseRequestPage() {
     } finally {
       setInitialLoading(false)
     }
-  }
+  }, [id, router])
+
+  useEffect(() => {
+    // fetchRequestData 내부의 setState는 모두 await 이후(비동기)에 실행됨
+    const load = async () => {
+      await fetchRequestData()
+    }
+    load()
+  }, [fetchRequestData])
 
   // 사무용품 항목 추가
   const addOfficeItem = () => {
@@ -207,7 +210,7 @@ export default function EditPurchaseRequestPage() {
   }
 
   // 사무용품 항목 변경
-  const updateOfficeItem = (id: string, field: keyof OfficeItemType, value: any) => {
+  const updateOfficeItem = <K extends keyof OfficeItemType>(id: string, field: K, value: OfficeItemType[K]) => {
     setOfficeItems(officeItems.map((item) =>
       item.id === id ? { ...item, [field]: value } : item
     ))
@@ -376,7 +379,7 @@ export default function EditPurchaseRequestPage() {
                 </Button>
               </div>
 
-              {officeItems.map((item, index) => (
+              {officeItems.map((item) => (
                 <Card key={item.id} className="p-4">
                   <div className="grid grid-cols-[1fr_auto] gap-4">
                     <div className="grid grid-cols-2 gap-4">

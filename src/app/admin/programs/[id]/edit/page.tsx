@@ -33,13 +33,6 @@ interface Program {
   allow_budget_change: boolean
 }
 
-const statusLabels: Record<string, string> = {
-  draft: "임시저장",
-  published: "공개",
-  unpublished: "비공개",
-  archived: "보관",
-}
-
 export default function AdminProgramEditPage() {
   const params = useParams()
   const router = useRouter()
@@ -62,43 +55,43 @@ export default function AdminProgramEditPage() {
   const [allowBudgetChange, setAllowBudgetChange] = useState(false)
 
   useEffect(() => {
-    fetchProgramDetail()
-  }, [id])
+    // loading 초기값이 true이므로 마운트 시 setLoading(true) 불필요
+    const fetchProgramDetail = async () => {
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from("programs")
+          .select("*")
+          .eq("id", id)
+          .single()
 
-  const fetchProgramDetail = async () => {
-    setLoading(true)
-    try {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from("programs")
-        .select("*")
-        .eq("id", id)
-        .single()
+        if (error) throw error
 
-      if (error) throw error
+        const prog = data as Program
+        setProgram(prog)
 
-      const prog = data as Program
-      setProgram(prog)
-
-      // 폼 상태 초기화
-      setName(prog.name)
-      setDescription(prog.description || "")
-      setStatus(prog.status)
-      setApplicationOpensAt(prog.application_opens_at ? prog.application_opens_at.slice(0, 16) : "")
-      setApplicationClosesAt(prog.application_closes_at ? prog.application_closes_at.slice(0, 16) : "")
-      setStartsAt(prog.starts_at ? prog.starts_at.slice(0, 16) : "")
-      setEndsAt(prog.ends_at ? prog.ends_at.slice(0, 16) : "")
-      setLocation(prog.location || "")
-      setCapacity(prog.capacity)
-      setAllowBudgetChange(prog.allow_budget_change || false)
-    } catch (error) {
-      console.error("프로그램 상세 조회 실패:", error)
-      alert("프로그램을 찾을 수 없습니다.")
-      router.push("/admin/programs")
-    } finally {
-      setLoading(false)
+        // 폼 상태 초기화
+        setName(prog.name)
+        setDescription(prog.description || "")
+        setStatus(prog.status)
+        setApplicationOpensAt(prog.application_opens_at ? prog.application_opens_at.slice(0, 16) : "")
+        setApplicationClosesAt(prog.application_closes_at ? prog.application_closes_at.slice(0, 16) : "")
+        setStartsAt(prog.starts_at ? prog.starts_at.slice(0, 16) : "")
+        setEndsAt(prog.ends_at ? prog.ends_at.slice(0, 16) : "")
+        setLocation(prog.location || "")
+        setCapacity(prog.capacity)
+        setAllowBudgetChange(prog.allow_budget_change || false)
+      } catch (error) {
+        console.error("프로그램 상세 조회 실패:", error)
+        alert("프로그램을 찾을 수 없습니다.")
+        router.push("/admin/programs")
+      } finally {
+        setLoading(false)
+      }
     }
-  }
+
+    fetchProgramDetail()
+  }, [id, router])
 
   const handleSave = async () => {
     if (!name || !description) {

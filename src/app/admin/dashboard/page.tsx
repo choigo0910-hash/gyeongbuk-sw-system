@@ -18,7 +18,6 @@ import {
   Clock,
   ArrowRight,
   Shield,
-  Settings,
   ChevronRight
 } from "lucide-react"
 
@@ -32,6 +31,32 @@ type PendingItem = {
   urgent?: boolean
 }
 
+// 대기 항목 조회 시 조인되는 기업 정보 (관계에 따라 객체 또는 배열로 반환될 수 있음)
+type CompanyRelation = { name: string | null } | { name: string | null }[] | null
+
+type PendingBudgetRow = {
+  id: string
+  status: string
+  created_at: string
+  companies: CompanyRelation
+}
+
+type PendingPurchaseRow = {
+  id: string
+  status: string
+  created_at: string
+  item_name: string
+  companies: CompanyRelation
+}
+
+type PendingRefundRow = {
+  id: string
+  status: string
+  created_at: string
+  refund_recipient_name: string
+  companies: CompanyRelation
+}
+
 type MonthlyStats = {
   month: string
   budget: number
@@ -40,7 +65,6 @@ type MonthlyStats = {
 }
 
 export default function AdminDashboard() {
-  const supabase = createClient()
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<{
     companies: number
@@ -62,205 +86,207 @@ export default function AdminDashboard() {
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([])
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStats[]>([])
 
+  // 마운트 시 1회 조회 (loading 초기값이 true 이므로 별도 setLoading(true) 불필요,
+  // supabase 클라이언트는 매 렌더마다 새로 생성되지 않도록 effect 내부에서 생성)
   useEffect(() => {
+    const fetchDashboardData = async () => {
+      const supabase = createClient()
+      try {
+
+        const currentYear = new Date().getFullYear()
+
+        // 전체 기업 수
+        const { count: companyCount } = await supabase
+          .from("companies")
+          .select("*", { count: "exact", head: true })
+          .is("deleted_at", null)
+
+        // 전체 사용자 수 (user_profiles 테이블 사용)
+        const { count: userCount } = await supabase
+          .from("user_profiles")
+          .select("*", { count: "exact", head: true })
+
+        // 예산 통계
+        const { data: budgets } = await supabase
+          .from("budgets")
+          .select("id, status, created_at")
+          .is("deleted_at", null)
+
+        const pendingBudgets = budgets?.filter(b =>
+          ["submitted", "reviewing", "revision_requested"].includes(b.status)
+        ).length || 0
+
+        // 구매요청 통계
+        const { data: purchases } = await supabase
+          .from("purchase_requests")
+          .select("id, status, created_at, companies (name)")
+          .in("status", ["submitted", "reviewing", "approved", "purchase_completed", "proof_submitted"])
+          .is("deleted_at", null)
+
+        const pendingPurchases = purchases?.filter(p =>
+          ["submitted", "reviewing"].includes(p.status)
+        ).length || 0
+
+        // 환급신청 통계
+        const { data: refunds } = await supabase
+          .from("refund_applications")
+          .select("id, status, created_at, companies (name)")
+          .in("status", ["submitted", "reviewing", "approved", "processing"])
+          .is("deleted_at", null)
+
+        const pendingRefunds = refunds?.filter(r =>
+          ["submitted", "reviewing"].includes(r.status)
+        ).length || 0
+
+        // 프로그램 신청 통계
+        const { data: programs } = await supabase
+          .from("program_applications")
+          .select("id, status, created_at")
+          .in("status", ["submitted", "reviewing"])
+          .is("deleted_at", null)
+
+        const pendingPrograms = programs?.length || 0
+
+        // 확인서 발급 통계
+        const { count: certificateCount } = await supabase
+          .from("certificates")
+          .select("*", { count: "exact", head: true })
+          .gte("created_at", new Date(currentYear, 0, 1).toISOString())
+          .is("deleted_at", null)
+
+        setStats({
+          companies: companyCount || 0,
+          users: userCount || 0,
+          pendingBudgets,
+          pendingPurchases,
+          pendingRefunds,
+          pendingPrograms,
+          certificates: certificateCount || 0,
+        })
+
+        // 대기 중인 항목
+        const pending: PendingItem[] = []
+
+        const { data: pendingBudgetsData } = await supabase
+          .from("budgets")
+          .select(`id, status, created_at, companies (name)`)
+          .in("status", ["submitted", "reviewing", "revision_requested"])
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(5)
+
+        pendingBudgetsData?.forEach((b: PendingBudgetRow) => {
+          const companyName = Array.isArray(b.companies)
+            ? b.companies[0]?.name
+            : b.companies?.name
+
+          pending.push({
+            id: b.id,
+            type: "budget",
+            title: `${companyName || "알 수 없음"} 예산서`,
+            company: companyName || "알 수 없음",
+            submittedAt: b.created_at,
+            link: `/admin/budgets/${b.id}/review`,
+            urgent: b.status === "revision_requested",
+          })
+        })
+
+        const { data: pendingPurchasesData } = await supabase
+          .from("purchase_requests")
+          .select(`id, status, created_at, item_name, companies (name)`)
+          .in("status", ["submitted", "reviewing"])
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(5)
+
+        pendingPurchasesData?.forEach((p: PendingPurchaseRow) => {
+          const companyName = Array.isArray(p.companies)
+            ? p.companies[0]?.name
+            : p.companies?.name
+
+          pending.push({
+            id: p.id,
+            type: "purchase",
+            title: `구매: ${p.item_name}`,
+            company: companyName || "알 수 없음",
+            submittedAt: p.created_at,
+            link: `/admin/purchase-requests/${p.id}/review`,
+          })
+        })
+
+        const { data: pendingRefundsData } = await supabase
+          .from("refund_applications")
+          .select(`id, status, created_at, refund_recipient_name, companies (name)`)
+          .in("status", ["submitted", "reviewing"])
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(3)
+
+        pendingRefundsData?.forEach((r: PendingRefundRow) => {
+          const companyName = Array.isArray(r.companies)
+            ? r.companies[0]?.name
+            : r.companies?.name
+
+          pending.push({
+            id: r.id,
+            type: "refund",
+            title: `환급: ${r.refund_recipient_name}`,
+            company: companyName || "알 수 없음",
+            submittedAt: r.created_at,
+            link: `/admin/refunds/${r.id}/review`,
+          })
+        })
+
+        pending.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+        setPendingItems(pending.slice(0, 8))
+
+        // 월별 통계 (최근 6개월)
+        const monthlyData: MonthlyStats[] = []
+        for (let i = 5; i >= 0; i--) {
+          const date = new Date()
+          date.setMonth(date.getMonth() - i)
+          const month = date.toLocaleString("ko-KR", { month: "short" })
+          const startDate = new Date(date.getFullYear(), date.getMonth(), 1)
+          const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0)
+
+          const { count: monthBudget } = await supabase
+            .from("budgets")
+            .select("*", { count: "exact", head: true })
+            .gte("created_at", startDate.toISOString())
+            .lte("created_at", endDate.toISOString())
+            .is("deleted_at", null)
+
+          const { count: monthPurchase } = await supabase
+            .from("purchase_requests")
+            .select("*", { count: "exact", head: true })
+            .gte("created_at", startDate.toISOString())
+            .lte("created_at", endDate.toISOString())
+            .is("deleted_at", null)
+
+          const { count: monthRefund } = await supabase
+            .from("refund_applications")
+            .select("*", { count: "exact", head: true })
+            .gte("created_at", startDate.toISOString())
+            .lte("created_at", endDate.toISOString())
+            .is("deleted_at", null)
+
+          monthlyData.push({
+            month,
+            budget: monthBudget || 0,
+            purchase: monthPurchase || 0,
+            refund: monthRefund || 0,
+          })
+        }
+        setMonthlyStats(monthlyData)
+      } catch (error) {
+        console.error("대시보드 데이터 조회 실패:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     fetchDashboardData()
   }, [])
-
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true)
-
-      const currentYear = new Date().getFullYear()
-
-      // 전체 기업 수
-      const { count: companyCount } = await supabase
-        .from("companies")
-        .select("*", { count: "exact", head: true })
-        .is("deleted_at", null)
-
-      // 전체 사용자 수 (user_profiles 테이블 사용)
-      const { count: userCount } = await supabase
-        .from("user_profiles")
-        .select("*", { count: "exact", head: true })
-
-      // 예산 통계
-      const { data: budgets } = await supabase
-        .from("budgets")
-        .select("id, status, created_at")
-        .is("deleted_at", null)
-
-      const pendingBudgets = budgets?.filter(b =>
-        ["submitted", "reviewing", "revision_requested"].includes(b.status)
-      ).length || 0
-
-      // 구매요청 통계
-      const { data: purchases } = await supabase
-        .from("purchase_requests")
-        .select("id, status, created_at, companies (name)")
-        .in("status", ["submitted", "reviewing", "approved", "purchase_completed", "proof_submitted"])
-        .is("deleted_at", null)
-
-      const pendingPurchases = purchases?.filter(p =>
-        ["submitted", "reviewing"].includes(p.status)
-      ).length || 0
-
-      // 환급신청 통계
-      const { data: refunds } = await supabase
-        .from("refund_applications")
-        .select("id, status, created_at, companies (name)")
-        .in("status", ["submitted", "reviewing", "approved", "processing"])
-        .is("deleted_at", null)
-
-      const pendingRefunds = refunds?.filter(r =>
-        ["submitted", "reviewing"].includes(r.status)
-      ).length || 0
-
-      // 프로그램 신청 통계
-      const { data: programs } = await supabase
-        .from("program_applications")
-        .select("id, status, created_at")
-        .in("status", ["submitted", "reviewing"])
-        .is("deleted_at", null)
-
-      const pendingPrograms = programs?.length || 0
-
-      // 확인서 발급 통계
-      const { count: certificateCount } = await supabase
-        .from("certificates")
-        .select("*", { count: "exact", head: true })
-        .gte("created_at", new Date(currentYear, 0, 1).toISOString())
-        .is("deleted_at", null)
-
-      setStats({
-        companies: companyCount || 0,
-        users: userCount || 0,
-        pendingBudgets,
-        pendingPurchases,
-        pendingRefunds,
-        pendingPrograms,
-        certificates: certificateCount || 0,
-      })
-
-      // 대기 중인 항목
-      const pending: PendingItem[] = []
-
-      const { data: pendingBudgetsData } = await supabase
-        .from("budgets")
-        .select(`id, status, created_at, companies (name)`)
-        .in("status", ["submitted", "reviewing", "revision_requested"])
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .limit(5)
-
-      pendingBudgetsData?.forEach((b: any) => {
-        const companyName = Array.isArray(b.companies)
-          ? b.companies[0]?.name
-          : b.companies?.name
-
-        pending.push({
-          id: b.id,
-          type: "budget",
-          title: `${companyName || "알 수 없음"} 예산서`,
-          company: companyName || "알 수 없음",
-          submittedAt: b.created_at,
-          link: `/admin/budgets/${b.id}/review`,
-          urgent: b.status === "revision_requested",
-        })
-      })
-
-      const { data: pendingPurchasesData } = await supabase
-        .from("purchase_requests")
-        .select(`id, status, created_at, item_name, companies (name)`)
-        .in("status", ["submitted", "reviewing"])
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .limit(5)
-
-      pendingPurchasesData?.forEach((p: any) => {
-        const companyName = Array.isArray(p.companies)
-          ? p.companies[0]?.name
-          : p.companies?.name
-
-        pending.push({
-          id: p.id,
-          type: "purchase",
-          title: `구매: ${p.item_name}`,
-          company: companyName || "알 수 없음",
-          submittedAt: p.created_at,
-          link: `/admin/purchase-requests/${p.id}/review`,
-        })
-      })
-
-      const { data: pendingRefundsData } = await supabase
-        .from("refund_applications")
-        .select(`id, status, created_at, refund_recipient_name, companies (name)`)
-        .in("status", ["submitted", "reviewing"])
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .limit(3)
-
-      pendingRefundsData?.forEach((r: any) => {
-        const companyName = Array.isArray(r.companies)
-          ? r.companies[0]?.name
-          : r.companies?.name
-
-        pending.push({
-          id: r.id,
-          type: "refund",
-          title: `환급: ${r.refund_recipient_name}`,
-          company: companyName || "알 수 없음",
-          submittedAt: r.created_at,
-          link: `/admin/refunds/${r.id}/review`,
-        })
-      })
-
-      pending.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
-      setPendingItems(pending.slice(0, 8))
-
-      // 월별 통계 (최근 6개월)
-      const monthlyData: MonthlyStats[] = []
-      for (let i = 5; i >= 0; i--) {
-        const date = new Date()
-        date.setMonth(date.getMonth() - i)
-        const month = date.toLocaleString("ko-KR", { month: "short" })
-        const startDate = new Date(date.getFullYear(), date.getMonth(), 1)
-        const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0)
-
-        const { count: monthBudget } = await supabase
-          .from("budgets")
-          .select("*", { count: "exact", head: true })
-          .gte("created_at", startDate.toISOString())
-          .lte("created_at", endDate.toISOString())
-          .is("deleted_at", null)
-
-        const { count: monthPurchase } = await supabase
-          .from("purchase_requests")
-          .select("*", { count: "exact", head: true })
-          .gte("created_at", startDate.toISOString())
-          .lte("created_at", endDate.toISOString())
-          .is("deleted_at", null)
-
-        const { count: monthRefund } = await supabase
-          .from("refund_applications")
-          .select("*", { count: "exact", head: true })
-          .gte("created_at", startDate.toISOString())
-          .lte("created_at", endDate.toISOString())
-          .is("deleted_at", null)
-
-        monthlyData.push({
-          month,
-          budget: monthBudget || 0,
-          purchase: monthPurchase || 0,
-          refund: monthRefund || 0,
-        })
-      }
-      setMonthlyStats(monthlyData)
-    } catch (error) {
-      console.error("대시보드 데이터 조회 실패:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const getPendingIcon = (type: string) => {
     const icons = {

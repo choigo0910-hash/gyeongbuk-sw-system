@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { formatCurrency } from "@/lib/utils"
@@ -64,6 +64,52 @@ export default function PurchaseRequestsListPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState("")
 
+  // loading은 useState(true)로 시작하며, 재조회 시에는 호출부에서 setLoading(true)를 먼저 호출
+  const fetchRequests = useCallback(async () => {
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (!user) {
+        return
+      }
+
+      // 회사 ID 가져오기
+      const { data: companies } = await supabase
+        .from("user_companies")
+        .select("company_id")
+        .eq("user_id", user.id)
+
+      const companyIds = companies?.map((c) => c.company_id) || []
+
+      if (companyIds.length === 0) {
+        setLoading(false)
+        return
+      }
+
+      // 구매요청 목록 가져오기
+      const { data } = await supabase
+        .from("purchase_requests")
+        .select("*")
+        .in("company_id", companyIds)
+        .order("created_at", { ascending: false })
+
+      setRequests((data as PurchaseRequest[]) || [])
+    } catch (error) {
+      console.error("구매요청 목록 조회 실패:", error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    // fetchRequests 내부의 setState는 모두 await 이후(비동기)에 실행됨
+    const load = async () => {
+      await fetchRequests()
+    }
+    load()
+  }, [fetchRequests])
+
   // 수정 가능한 상태 확인
   const canEdit = (status: string) => {
     return status === "draft" || status === "submitted" || status === "rejected"
@@ -102,52 +148,11 @@ export default function PurchaseRequestsListPage() {
       if (error) throw error
 
       alert("삭제되었습니다.")
+      setLoading(true)
       fetchRequests() // 목록 새로고침
     } catch (error) {
       console.error("삭제 실패:", error)
       alert("삭제에 실패했습니다.")
-    }
-  }
-
-  useEffect(() => {
-    fetchRequests()
-  }, [])
-
-  const fetchRequests = async () => {
-    setLoading(true)
-    try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-
-      if (!user) {
-        return
-      }
-
-      // 회사 ID 가져오기
-      const { data: companies } = await supabase
-        .from("user_companies")
-        .select("company_id")
-        .eq("user_id", user.id)
-
-      const companyIds = companies?.map((c) => c.company_id) || []
-
-      if (companyIds.length === 0) {
-        setLoading(false)
-        return
-      }
-
-      // 구매요청 목록 가져오기
-      const { data } = await supabase
-        .from("purchase_requests")
-        .select("*")
-        .in("company_id", companyIds)
-        .order("created_at", { ascending: false })
-
-      setRequests((data as PurchaseRequest[]) || [])
-    } catch (error) {
-      console.error("구매요청 목록 조회 실패:", error)
-    } finally {
-      setLoading(false)
     }
   }
 

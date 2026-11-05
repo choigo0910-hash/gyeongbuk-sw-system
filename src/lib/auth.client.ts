@@ -16,7 +16,11 @@ export async function getUserRolesClient(): Promise<Role[]> {
     .select("roles(code)")
     .eq("user_id", session.user.id)
 
-  return (data?.map((r: any) => r.roles?.code).filter(Boolean) as Role[]) || []
+  return (
+    ((data as { roles: { code: string } | null }[] | null)
+      ?.map((r) => r.roles?.code)
+      .filter(Boolean) as Role[]) || []
+  )
 }
 
 /**

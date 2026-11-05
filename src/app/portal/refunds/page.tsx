@@ -67,44 +67,44 @@ export default function RefundsListPage() {
   const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
+    // loading 초기값이 true이므로 마운트 시 setLoading(true) 불필요
+    const fetchApplications = async () => {
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (!user) {
+          return
+        }
+
+        const { data: companies } = await supabase
+          .from("user_companies")
+          .select("company_id")
+          .eq("user_id", user.id)
+
+        const companyIds = companies?.map((c) => c.company_id) || []
+
+        if (companyIds.length === 0) {
+          setLoading(false)
+          return
+        }
+
+        const { data } = await supabase
+          .from("refund_applications")
+          .select("*")
+          .in("company_id", companyIds)
+          .order("created_at", { ascending: false })
+
+        setApplications((data as RefundApplication[]) || [])
+      } catch (error) {
+        console.error("환급신청 목록 조회 실패:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     fetchApplications()
   }, [])
-
-  const fetchApplications = async () => {
-    setLoading(true)
-    try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-
-      if (!user) {
-        return
-      }
-
-      const { data: companies } = await supabase
-        .from("user_companies")
-        .select("company_id")
-        .eq("user_id", user.id)
-
-      const companyIds = companies?.map((c) => c.company_id) || []
-
-      if (companyIds.length === 0) {
-        setLoading(false)
-        return
-      }
-
-      const { data } = await supabase
-        .from("refund_applications")
-        .select("*")
-        .in("company_id", companyIds)
-        .order("created_at", { ascending: false })
-
-      setApplications((data as RefundApplication[]) || [])
-    } catch (error) {
-      console.error("환급신청 목록 조회 실패:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const filteredApplications = applications.filter((app) => {
     const matchesStatus = statusFilter === "all" || app.status === statusFilter

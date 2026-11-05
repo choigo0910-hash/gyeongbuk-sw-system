@@ -1,14 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
@@ -47,9 +46,12 @@ interface ChatConversation {
   message_count: number
 }
 
+// chat_conversations 원본 행 (집계 필드 제외)
+type ChatConversationRow = Omit<ChatConversation, "user_email" | "message_count">
+
 export default function AdminChatbotPage() {
-  const supabase = createClient()
-  const [loading, setLoading] = useState(true)
+  // 렌더마다 새 인스턴스가 생기지 않도록 최초 1회만 생성 (useCallback 의존성 안정화)
+  const [supabase] = useState(() => createClient())
 
   // 지식 베이스 상태
   const [knowledge, setKnowledge] = useState<ChatbotKnowledge[]>([])
@@ -71,13 +73,8 @@ export default function AdminChatbotPage() {
   // Tabs 상태
   const [activeTab, setActiveTab] = useState("knowledge")
 
-  useEffect(() => {
-    fetchKnowledge()
-    fetchConversations()
-  }, [])
-
   // 지식 베이스 조회
-  const fetchKnowledge = async () => {
+  const fetchKnowledge = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("chatbot_knowledge")
@@ -90,7 +87,7 @@ export default function AdminChatbotPage() {
     } catch (error) {
       console.error("지식 베이스 조회 실패:", error)
     }
-  }
+  }, [supabase])
 
   // 지식 베이스 저장
   const saveKnowledge = async () => {
@@ -160,7 +157,7 @@ export default function AdminChatbotPage() {
   }
 
   // 채팅 기록 조회
-  const fetchConversations = async () => {
+  const fetchConversations = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("chat_conversations")
@@ -171,7 +168,7 @@ export default function AdminChatbotPage() {
 
       // 메시지 수 카운트 및 사용자 이메일 조회
       const conversationsWithCount = await Promise.all(
-        (data || []).map(async (conv: any) => {
+        ((data || []) as ChatConversationRow[]).map(async (conv) => {
           const [{ count }, { data: profileData }] = await Promise.all([
             supabase
               .from("chat_messages")
@@ -195,10 +192,15 @@ export default function AdminChatbotPage() {
       setConversations(conversationsWithCount)
     } catch (error) {
       console.error("채팅 기록 조회 실패:", error)
-    } finally {
-      setLoading(false)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    // 두 조회 함수의 setState는 모두 await 이후(비동기)에만 호출됨
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트 시 데이터 조회 패턴 (setState는 await 이후에만 실행)
+    fetchKnowledge()
+    fetchConversations()
+  }, [fetchKnowledge, fetchConversations])
 
   // 메시지 조회
   const fetchMessages = async (conversationId: string) => {

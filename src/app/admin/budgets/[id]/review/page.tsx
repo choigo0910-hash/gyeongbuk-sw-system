@@ -4,19 +4,11 @@ import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { formatCurrency } from "@/lib/utils"
-import { sendNotification, type NotificationType } from "@/lib/notifications"
+import { sendNotification } from "@/lib/notifications"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 
 interface BudgetItem {
   id: string
@@ -70,49 +62,49 @@ export default function BudgetReviewPage() {
   // 검토 의견
   const [reviewNote, setReviewNote] = useState("")
 
+  // 마운트(budgetId 결정) 시 조회 (loading 초기값이 true 이므로 별도 setLoading(true) 불필요)
   useEffect(() => {
+    const fetchBudget = async () => {
+      try {
+        const supabase = createClient()
+
+        // 예산서 정보 (회사 이름 포함)
+        const { data: budgetData } = await supabase
+          .from("budgets")
+          .select(`
+            *,
+            companies (name)
+          `)
+          .eq("id", budgetId)
+          .single()
+
+        if (!budgetData) {
+          alert("예산서를 찾을 수 없습니다.")
+          router.back()
+          return
+        }
+
+        setBudget(budgetData as Budget)
+
+        // 예산 항목
+        const { data: itemsData } = await supabase
+          .from("budget_items")
+          .select("*")
+          .eq("budget_id", budgetId)
+          .order("sort_order", { ascending: true })
+
+        setItems((itemsData as BudgetItem[]) || [])
+      } catch (error) {
+        console.error("예산서 조회 실패:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     if (budgetId) {
       fetchBudget()
     }
-  }, [budgetId])
-
-  const fetchBudget = async () => {
-    setLoading(true)
-    try {
-      const supabase = createClient()
-
-      // 예산서 정보 (회사 이름 포함)
-      const { data: budgetData } = await supabase
-        .from("budgets")
-        .select(`
-          *,
-          companies (name)
-        `)
-        .eq("id", budgetId)
-        .single()
-
-      if (!budgetData) {
-        alert("예산서를 찾을 수 없습니다.")
-        router.back()
-        return
-      }
-
-      setBudget(budgetData as Budget)
-
-      // 예산 항목
-      const { data: itemsData } = await supabase
-        .from("budget_items")
-        .select("*")
-        .eq("budget_id", budgetId)
-        .order("sort_order", { ascending: true })
-
-      setItems((itemsData as BudgetItem[]) || [])
-    } catch (error) {
-      console.error("예산서 조회 실패:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [budgetId, router])
 
   // 승인
   const handleApprove = async () => {

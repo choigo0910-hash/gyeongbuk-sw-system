@@ -1,7 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -11,25 +10,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 
-interface SystemSettings {
-  id: string
-  key: string
-  value: string
-  description: string | null
-  updated_at: string
-}
-
 export default function AdminSettingsPage() {
-  const supabase = createClient()
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
   // 시스템 설정 상태
-  const [systemSettings, setSystemSettings] = useState<Record<string, string>>({})
+  // 기본 설정 값 (실제로는 DB나 설정 파일에서 가져와야 함)
   const [siteName, setSiteName] = useState("경북 SW 성장기업지원사업")
-  const [siteDescription, setSiteDescription] = useState("")
-  const [contactEmail, setContactEmail] = useState("")
-  const [contactPhone, setContactPhone] = useState("")
+  const [siteDescription, setSiteDescription] = useState("경북 SW 성장기업육성지원사업 통합 관리 시스템")
+  const [contactEmail, setContactEmail] = useState("support@example.com")
+  const [contactPhone, setContactPhone] = useState("054-XXX-XXXX")
 
   // 알림 설정 상태
   const [emailNotifications, setEmailNotifications] = useState(true)
@@ -44,25 +33,6 @@ export default function AdminSettingsPage() {
   const [notifyAdminOnSubmit, setNotifyAdminOnSubmit] = useState(true)
   const [notifyOnReview, setNotifyOnReview] = useState(true)
   const [notifyBeforeDeadline, setNotifyBeforeDeadline] = useState(true)
-
-  useEffect(() => {
-    fetchSettings()
-  }, [])
-
-  const fetchSettings = async () => {
-    setLoading(true)
-    try {
-      // 기본 설정 값 로드 (실제로는 DB나 설정 파일에서 가져와야 함)
-      setSiteName("경북 SW 성장기업지원사업")
-      setSiteDescription("경북 SW 성장기업육성지원사업 통합 관리 시스템")
-      setContactEmail("support@example.com")
-      setContactPhone("054-XXX-XXXX")
-    } catch (error) {
-      console.error("설정 조회 실패:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleSaveSiteSettings = async () => {
     setSaving(true)

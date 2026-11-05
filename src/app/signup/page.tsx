@@ -13,6 +13,13 @@ import Image from "next/image"
 
 type MemberType = "representative" | "team"
 
+// companies 검색 결과 (select("id, name, business_number"))
+type CompanySearchResult = {
+  id: string
+  name: string
+  business_number: string | null
+}
+
 // 에러 메시지 한국어 변환
 function translateAuthError(message: string): string {
   const errorMap: Record<string, string> = {
@@ -74,7 +81,7 @@ export default function SignupPage() {
 
   // 기업 선택 (팀원)
   const [selectedCompany, setSelectedCompany] = useState("")
-  const [existingCompanies, setExistingCompanies] = useState<any[]>([])
+  const [existingCompanies, setExistingCompanies] = useState<CompanySearchResult[]>([])
   const [searchCompany, setSearchCompany] = useState("")
 
   // 기업 검색
@@ -92,7 +99,7 @@ export default function SignupPage() {
         .or(`name.ilike.%${query}%,business_number.ilike.%${query}%`)
         .limit(10)
 
-      setExistingCompanies(data || [])
+      setExistingCompanies((data as CompanySearchResult[] | null) || [])
     } catch (err) {
       console.error("기업 검색 실패:", err)
     }
@@ -214,7 +221,7 @@ export default function SignupPage() {
       sessionStorage.setItem("memberType", memberType)
       router.push("/signup/complete")
       router.refresh()
-    } catch (err) {
+    } catch {
       setError("회원가입 중 오류가 발생했습니다.")
     } finally {
       setLoading(false)

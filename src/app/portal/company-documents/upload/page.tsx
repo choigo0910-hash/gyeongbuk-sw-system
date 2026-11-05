@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -63,7 +63,8 @@ export default function CompanyDocumentUploadPage() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // preventDefault만 사용하므로 폼 이벤트와 버튼에서 생성한 네이티브 Event 모두 허용
+  const handleSubmit = async (e: Pick<React.FormEvent, "preventDefault">) => {
     e.preventDefault()
 
     if (!file) {
@@ -305,7 +306,7 @@ export default function CompanyDocumentUploadPage() {
                 type="button"
                 onClick={() => {
                   // 제출 로직 (status를 submitted로 변경)
-                  handleSubmit(new Event("submit") as any)
+                  handleSubmit(new Event("submit"))
                 }}
                 disabled={loading}
               >

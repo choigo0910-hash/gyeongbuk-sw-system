@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,20 +17,18 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
 import {
   Mail,
   Bell,
   Send,
   Edit,
   Trash2,
-  Check,
-  X,
 } from "lucide-react"
 import type { EmailTemplate, Notification } from "@/types/database"
 
 export default function AdminNotificationsPage() {
-  const supabase = createClient()
+  // 렌더마다 새 인스턴스가 생기지 않도록 최초 1회만 생성 (useCallback 의존성 안정화)
+  const [supabase] = useState(() => createClient())
   const [activeTab, setActiveTab] = useState("templates")
   const [loading, setLoading] = useState(true)
   const [refresh, setRefresh] = useState(0)
@@ -46,11 +44,7 @@ export default function AdminNotificationsPage() {
   // 편집 상태
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null)
 
-  useEffect(() => {
-    fetchData()
-  }, [refresh])
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true)
     try {
       // 이메일 템플릿 조회
@@ -69,13 +63,20 @@ export default function AdminNotificationsPage() {
         .order("created_at", { ascending: false })
         .limit(100)
 
-      if (notificationsData) setNotifications(notificationsData as any[])
+      if (notificationsData) setNotifications(notificationsData as Notification[])
     } catch (error) {
       console.error("알림 데이터 조회 실패:", error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
+
+  // refresh 값이 바뀔 때마다 재조회 (저장/삭제 후 setRefresh로 트리거)
+  useEffect(() => {
+    // setLoading(true)는 재조회 시 로딩 표시를 위해 의도된 것(최초 마운트에서는 초기값과 같아 무시됨), 나머지 setState는 await 이후 실행
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- refresh 트리거 기반 데이터 조회 패턴
+    fetchData()
+  }, [fetchData, refresh])
 
   // 템플릿 CRUD
   const handleSaveTemplate = async (formData: FormData) => {
@@ -112,7 +113,7 @@ export default function AdminNotificationsPage() {
     }
   }
 
-  const handleSendNotification = async (formData: FormData) => {
+  const handleSendNotification = async () => {
     // 실제로는 API 라우트를 통해 발송해야 합니다
     alert("알림 발송 기능은 API 라우트 구현 후 사용 가능합니다.")
     setSendNotificationDialog(false)

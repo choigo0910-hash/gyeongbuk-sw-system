@@ -1,13 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { formatCurrency } from "@/lib/utils"
 import { getSignedFileUrl } from "@/lib/storage"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { CurrencyInput } from "@/components/ui/currency-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -242,12 +241,7 @@ export default function AdminPurchaseRequestReviewPage() {
   const [approvedAmount, setApprovedAmount] = useState(0)
   const [rejectionReason, setRejectionReason] = useState("")
 
-  useEffect(() => {
-    fetchRequestDetail()
-    fetchProofDocuments()
-  }, [id])
-
-  const fetchRequestDetail = async () => {
+  const fetchRequestDetail = useCallback(async () => {
     try {
       const supabase = createClient()
 
@@ -262,9 +256,10 @@ export default function AdminPurchaseRequestReviewPage() {
 
       if (error) throw error
 
+      const row = data as Omit<PurchaseRequest, "company_name"> & { companies: { name: string } }
       const formattedData = {
-        ...(data as any),
-        company_name: (data as any).companies.name,
+        ...row,
+        company_name: row.companies.name,
       }
       setRequest(formattedData as PurchaseRequest)
       setApprovedAmount(formattedData.approved_amount || formattedData.requested_amount)
@@ -273,9 +268,9 @@ export default function AdminPurchaseRequestReviewPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
 
-  const fetchProofDocuments = async () => {
+  const fetchProofDocuments = useCallback(async () => {
     try {
       const supabase = createClient()
       const { data, error } = await supabase
@@ -299,7 +294,15 @@ export default function AdminPurchaseRequestReviewPage() {
     } catch (error) {
       console.error("증빙서류 조회 실패:", error)
     }
-  }
+  }, [id])
+
+  useEffect(() => {
+    // 두 fetch 함수 내부의 setState는 모두 await 이후(비동기)에 실행됨
+    const load = async () => {
+      await Promise.all([fetchRequestDetail(), fetchProofDocuments()])
+    }
+    load()
+  }, [fetchRequestDetail, fetchProofDocuments])
 
   const handleApprove = async () => {
     if (!confirm("이 요청을 승인하시겠습니까?")) return

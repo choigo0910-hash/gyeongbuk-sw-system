@@ -21,7 +21,7 @@ export async function GET(request: Request) {
           .select("roles(code)")
           .eq("user_id", user.id)
 
-        const roles = rolesData?.map((r: any) => r.roles?.code) || []
+        const roles = (rolesData as { roles?: { code?: string } | null }[] | null)?.map((r) => r.roles?.code) || []
         const isAdmin = roles.includes("admin") || roles.includes("super_admin")
 
         // 역할에 따라 리다이렉트

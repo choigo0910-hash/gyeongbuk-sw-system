@@ -1,10 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -34,6 +33,14 @@ interface Certificate {
   user_name: string | null
 }
 
+// certificates + program_applications/applicants 조인 조회 결과
+type CertificateRow = Omit<Certificate, "user_email" | "user_name"> & {
+  program_applications: {
+    applicant_id: string
+    applicants: { email: string | null; full_name: string | null } | null
+  }
+}
+
 const statusLabels: Record<string, string> = {
   pending: "신청중",
   approved: "승인",
@@ -58,12 +65,8 @@ export default function AdminCertificatesPage() {
   const [selectedCert, setSelectedCert] = useState<string | null>(null)
   const [rejectionReason, setRejectionReason] = useState("")
 
-  useEffect(() => {
-    fetchCertificates()
-  }, [])
-
-  const fetchCertificates = async () => {
-    setLoading(true)
+  // 마운트 시에는 loading 초기값(true)을 사용하고, 재조회 시에는 호출부에서 setLoading(true) 처리
+  const fetchCertificates = useCallback(async () => {
     try {
       const supabase = createClient()
 
@@ -79,7 +82,7 @@ export default function AdminCertificatesPage() {
         .order("issued_at", { ascending: false })
 
       if (data) {
-        const formattedData = data.map((item: any) => ({
+        const formattedData = (data as CertificateRow[]).map((item) => ({
           ...item,
           user_email: item.program_applications.applicants?.email,
           user_name: item.program_applications.applicants?.full_name,
@@ -91,7 +94,12 @@ export default function AdminCertificatesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트 시 데이터 조회 패턴 (setState는 await 이후에만 실행)
+    fetchCertificates()
+  }, [fetchCertificates])
 
   const getCertStatus = (cert: Certificate) => {
     if (cert.pdf_path) return "issued"
@@ -124,6 +132,7 @@ export default function AdminCertificatesPage() {
       if (error) throw error
 
       alert("승인되었습니다. PDF 생성 후 발급이 완료됩니다.")
+      setLoading(true)
       fetchCertificates()
     } catch (error) {
       console.error("승인 실패:", error)
@@ -155,6 +164,7 @@ export default function AdminCertificatesPage() {
       alert("반려 처리되었습니다.")
       setSelectedCert(null)
       setRejectionReason("")
+      setLoading(true)
       fetchCertificates()
     } catch (error) {
       console.error("반려 실패:", error)

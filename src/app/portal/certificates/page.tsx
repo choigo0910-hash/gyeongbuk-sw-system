@@ -1,17 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 
@@ -28,31 +21,13 @@ interface Certificate {
   reissue_count: number
 }
 
-const statusLabels: Record<string, string> = {
-  requested: "신청중",
-  approved: "승인",
-  rejected: "반려",
-  issued: "발급완료",
-}
-
-const statusColors: Record<string, string> = {
-  requested: "bg-blue-100 text-blue-700",
-  approved: "bg-green-100 text-green-700",
-  rejected: "bg-red-100 text-red-700",
-  issued: "bg-teal-100 text-teal-700",
-}
-
 export default function CertificatesListPage() {
   const [certificates, setCertificates] = useState<Certificate[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
 
-  useEffect(() => {
-    fetchCertificates()
-  }, [])
-
-  const fetchCertificates = async () => {
-    setLoading(true)
+  // 마운트 시 1회만 호출됨 (loading 초기값이 true이므로 시작 시 setLoading(true) 불필요)
+  const fetchCertificates = useCallback(async () => {
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -73,7 +48,13 @@ export default function CertificatesListPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    // fetchCertificates 내부의 setState는 모두 await 이후(비동기)에만 호출됨
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트 시 데이터 조회 패턴 (setState는 await 이후에만 실행)
+    fetchCertificates()
+  }, [fetchCertificates])
 
   const filteredCertificates = certificates.filter((cert) => {
     const matchesSearch =
@@ -83,12 +64,6 @@ export default function CertificatesListPage() {
       cert.document_number.toLowerCase().includes(searchQuery.toLowerCase())
     return matchesSearch
   })
-
-  const canRequestCertificate = () => {
-    // 프로그램 완료 후 확인서 발급 가능
-    // 실제로는 program_applications 테이블에서 completed 상태를 확인해야 함
-    return certificates.filter((c) => !c.pdf_path).length < 3
-  }
 
   return (
     <div className="space-y-6">

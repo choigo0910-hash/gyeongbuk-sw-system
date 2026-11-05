@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { formatCurrency } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { CurrencyInput } from "@/components/ui/currency-input"
 import { Label } from "@/components/ui/label"
@@ -68,7 +68,6 @@ type EducationCourse = {
 export default function NewPurchaseRequestPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
 
   // 공통 필드
   const [category, setCategory] = useState("")
@@ -90,11 +89,12 @@ export default function NewPurchaseRequestPage() {
   const [outsourcingType, setOutsourcingType] = useState("")
   const [companyName, setCompanyName] = useState("")
   const [companyContact, setCompanyContact] = useState("")
-  const [quoteFile, setQuoteFile] = useState<File | null>(null)
-  const [additionalFiles, setAdditionalFiles] = useState<File[]>([])
+  // TODO: 선택한 첨부파일(견적서·추가서류·교육계획서·용역 서류)은 아직 제출 시 업로드되지 않음
+  const [, setQuoteFile] = useState<File | null>(null)
+  const [, setAdditionalFiles] = useState<File[]>([])
 
   // 위탁교육비 필드
-  const [educationPlanFile, setEducationPlanFile] = useState<File | null>(null)
+  const [, setEducationPlanFile] = useState<File | null>(null)
   const [educationCourses, setEducationCourses] = useState<EducationCourse[]>([
     { courseName: "", courseLink: "", accountId: "", accountPassword: "" }
   ])
@@ -105,7 +105,7 @@ export default function NewPurchaseRequestPage() {
   const [serviceCompanyName, setServiceCompanyName] = useState("")
   const [serviceContactEmail, setServiceContactEmail] = useState("")
   const [serviceContactPhone, setServiceContactPhone] = useState("")
-  const [serviceFiles, setServiceFiles] = useState<File[]>([])
+  const [, setServiceFiles] = useState<File[]>([])
 
   // 홍보비 필드
   const [promotionName, setPromotionName] = useState("")
@@ -118,12 +118,15 @@ export default function NewPurchaseRequestPage() {
   const isContactOnly = currentCategory?.contactRequired || false
 
   // 사무용품비/도서구입비/장비임차료일 때 금액 합계 자동 계산
-  useEffect(() => {
+  // (effect 대신 렌더 중 이전 값과 비교하여 변경 시에만 갱신 — 다른 카테고리에서는 수동 입력값 유지)
+  const [prevAmountSource, setPrevAmountSource] = useState({ officeItems, category })
+  if (prevAmountSource.officeItems !== officeItems || prevAmountSource.category !== category) {
+    setPrevAmountSource({ officeItems, category })
     if (category === "office_supplies" || category === "books" || category === "equipment_rent") {
       const sum = officeItems.reduce((total, item) => total + item.amount, 0)
       setTotalAmount(sum)
     }
-  }, [officeItems, category])
+  }
 
   // 사무용품 항목 추가
   const addOfficeItem = () => {
@@ -141,7 +144,7 @@ export default function NewPurchaseRequestPage() {
   }
 
   // 사무용품 항목 변경
-  const updateOfficeItem = (id: string, field: keyof OfficeItemType, value: any) => {
+  const updateOfficeItem = <K extends keyof OfficeItemType>(id: string, field: K, value: OfficeItemType[K]) => {
     setOfficeItems(officeItems.map((item) =>
       item.id === id ? { ...item, [field]: value } : item
     ))
@@ -408,7 +411,7 @@ export default function NewPurchaseRequestPage() {
                 </Button>
               </div>
 
-              {officeItems.map((item, index) => (
+              {officeItems.map((item) => (
                 <Card key={item.id} className="p-4">
                   <div className="grid grid-cols-[1fr_auto] gap-4">
                     <div className="grid grid-cols-2 gap-4">

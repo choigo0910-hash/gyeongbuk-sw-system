@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { getSignedFileUrl } from "@/lib/storage"
@@ -33,6 +33,12 @@ interface CompanyDocument {
   submitted_by_email: string
 }
 
+// company_documents 조회 결과 (companies, submitted_by_user 조인 포함)
+type CompanyDocumentRow = Omit<CompanyDocument, "company_name" | "submitted_by_email"> & {
+  companies: { name: string }
+  submitted_by_user: { email: string | null } | null
+}
+
 const documentTypeLabels: Record<string, string> = {
   business_registration: "사업자등록증",
   interim_report: "중간 성과 보고서",
@@ -58,11 +64,7 @@ export default function AdminCompanyDocumentReviewPage() {
   // Storage 버킷이 private이므로 조회 시점에 서명된 URL을 생성
   const [fileSignedUrl, setFileSignedUrl] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchDocumentDetail()
-  }, [id])
-
-  const fetchDocumentDetail = async () => {
+  const fetchDocumentDetail = useCallback(async () => {
     setLoading(true)
     try {
       const supabase = createClient()
@@ -79,19 +81,26 @@ export default function AdminCompanyDocumentReviewPage() {
 
       if (error) throw error
 
+      const row = data as CompanyDocumentRow
       const formattedData = {
-        ...(data as any),
-        company_name: (data as any).companies.name,
-        submitted_by_email: (data as any).submitted_by_user?.email || "",
+        ...row,
+        company_name: row.companies.name,
+        submitted_by_email: row.submitted_by_user?.email || "",
       }
       setDocument(formattedData as CompanyDocument)
-      setFileSignedUrl(await getSignedFileUrl(supabase, (data as any).file_url))
+      setFileSignedUrl(await getSignedFileUrl(supabase, row.file_url))
     } catch (error) {
       console.error("서류 상세 조회 실패:", error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
+
+  useEffect(() => {
+    // setLoading(true)는 id 변경 시 로딩 표시를 위해 의도된 것(최초 마운트에서는 초기값과 같아 무시됨), 나머지 setState는 await 이후 실행
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- id 기준 데이터 조회 패턴
+    fetchDocumentDetail()
+  }, [fetchDocumentDetail])
 
   const handleApprove = async () => {
     if (!confirm("이 서류를 승인하시겠습니까?")) return

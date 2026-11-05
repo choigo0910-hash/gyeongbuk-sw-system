@@ -2,6 +2,11 @@ import { createClient as createBrowserClient } from "@/lib/supabase/client"
 import { createClient as createServerClient } from "@/lib/supabase/server"
 import { Role } from "@/types"
 
+// user_roles.select("roles(code)") 결과 행
+type UserRoleRow = { roles?: { code?: string } | null }
+// user_companies.select("company_id") 결과 행
+type UserCompanyRow = { company_id: string }
+
 /**
  * Get current user's roles (client-side)
  */
@@ -16,7 +21,7 @@ export async function getUserRolesClient(): Promise<Role[]> {
     .select("roles(code)")
     .eq("user_id", user.id)
 
-  return (data?.map((r: any) => r.roles?.code).filter(Boolean) as Role[]) || []
+  return ((data as UserRoleRow[] | null)?.map((r) => r.roles?.code).filter(Boolean) as Role[]) || []
 }
 
 /**
@@ -33,7 +38,7 @@ export async function getUserRolesServer(): Promise<Role[]> {
     .select("roles(code)")
     .eq("user_id", user.id)
 
-  return (data?.map((r: any) => r.roles?.code).filter(Boolean) as Role[]) || []
+  return ((data as UserRoleRow[] | null)?.map((r) => r.roles?.code).filter(Boolean) as Role[]) || []
 }
 
 /**
@@ -81,7 +86,7 @@ export async function getUserCompanyIds(): Promise<string[]> {
     .select("company_id")
     .eq("user_id", user.id)
 
-  return (data?.map((c: any) => c.company_id) as string[]) || []
+  return (data as UserCompanyRow[] | null)?.map((c) => c.company_id) || []
 }
 
 /**
@@ -138,7 +143,7 @@ export async function getPrimaryCompany(): Promise<{ id: string; name: string } 
     .eq("is_primary", true)
     .single()
 
-  return data as any
+  return data as { id: string; name: string } | null
 }
 
 /**

@@ -1,13 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useState, useEffect, useCallback } from "react"
+import { useParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -35,16 +34,30 @@ interface Program {
   current_applicants: number
 }
 
+// 신청서 추가 입력값 (JSON)
+interface ApplicationData {
+  position?: string
+  applicantPhone?: string
+  specialNote?: string
+  [key: string]: unknown
+}
+
 interface ProgramApplication {
   id: string
   program_id: string
   applicant_id: string
   status: string
-  application_data: Record<string, any> | null
+  application_data: ApplicationData | null
   created_at: string
   user_email: string | null
   user_name: string | null
   company_name: string | null
+}
+
+// program_applications + applicants/companies 조인 조회 결과
+type ApplicationRow = Omit<ProgramApplication, "user_email" | "user_name" | "company_name"> & {
+  applicants: { email: string | null; full_name: string | null }
+  companies: { name: string | null }
 }
 
 const statusLabels: Record<string, string> = {
@@ -73,7 +86,6 @@ const statusColors: Record<string, string> = {
 
 export default function AdminProgramDetailPage() {
   const params = useParams()
-  const router = useRouter()
   const id = params.id as string
 
   const [program, setProgram] = useState<Program | null>(null)
@@ -86,30 +98,7 @@ export default function AdminProgramDetailPage() {
   const [newStatus, setNewStatus] = useState("")
   const [rejectionReason, setRejectionReason] = useState("")
 
-  useEffect(() => {
-    fetchProgramDetail()
-    fetchApplications()
-  }, [id])
-
-  const fetchProgramDetail = async () => {
-    try {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from("programs")
-        .select("*")
-        .eq("id", id)
-        .single()
-
-      if (error) throw error
-      setProgram(data as Program)
-    } catch (error) {
-      console.error("프로그램 상세 조회 실패:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchApplications = async () => {
+  const fetchApplications = useCallback(async () => {
     try {
       const supabase = createClient()
 
@@ -124,7 +113,7 @@ export default function AdminProgramDetailPage() {
         .order("created_at", { ascending: false })
 
       if (data) {
-        const formattedData = data.map((item: any) => ({
+        const formattedData = (data as ApplicationRow[]).map((item) => ({
           ...item,
           user_email: item.applicants.email,
           user_name: item.applicants.full_name,
@@ -135,7 +124,31 @@ export default function AdminProgramDetailPage() {
     } catch (error) {
       console.error("신청 내역 조회 실패:", error)
     }
-  }
+  }, [id])
+
+  useEffect(() => {
+    const fetchProgramDetail = async () => {
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from("programs")
+          .select("*")
+          .eq("id", id)
+          .single()
+
+        if (error) throw error
+        setProgram(data as Program)
+      } catch (error) {
+        console.error("프로그램 상세 조회 실패:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchProgramDetail()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트 시 데이터 조회 패턴 (setState는 await 이후에만 실행)
+    fetchApplications()
+  }, [id, fetchApplications])
 
   const handleUpdateStatus = async () => {
     if (!selectedApplication || !newStatus) return
@@ -153,7 +166,7 @@ export default function AdminProgramDetailPage() {
       const currentApp = applications.find(app => app.id === selectedApplication)
       if (!currentApp) return
 
-      const updateData: any = {
+      const updateData: { status: string; rejection_reason?: string } = {
         status: newStatus,
       }
 

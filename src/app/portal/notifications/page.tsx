@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { getUserNotifications, markAsRead, markAllAsRead } from "@/lib/notifications"
@@ -29,26 +29,32 @@ export default function NotificationsPage() {
   const [filter, setFilter] = useState<"all" | "unread">("all")
 
   useEffect(() => {
+    // loading 초기값이 true이고, 필터 변경 시에는 handleFilterChange에서 setLoading(true) 처리
+    const fetchNotifications = async () => {
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        const data = await getUserNotifications(user.id, filter === "unread")
+        setNotifications(data)
+
+        // 안읽은 알림 수
+        const unread = data.filter((n) => !n.is_read).length
+        setUnreadCount(unread)
+      } catch (error) {
+        console.error("알림 조회 실패:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     fetchNotifications()
   }, [filter])
 
-  const fetchNotifications = async () => {
-    setLoading(true)
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const data = await getUserNotifications(user.id, filter === "unread")
-      setNotifications(data)
-
-      // 안읽은 알림 수
-      const unread = data.filter((n) => !n.is_read).length
-      setUnreadCount(unread)
-    } catch (error) {
-      console.error("알림 조회 실패:", error)
-    } finally {
-      setLoading(false)
-    }
+  const handleFilterChange = (next: "all" | "unread") => {
+    if (next !== filter) setLoading(true)
+    setFilter(next)
   }
 
   const handleMarkAsRead = async (notificationId: string) => {
@@ -154,14 +160,14 @@ export default function NotificationsPage() {
         <Button
           variant={filter === "all" ? "default" : "outline"}
           size="sm"
-          onClick={() => setFilter("all")}
+          onClick={() => handleFilterChange("all")}
         >
           전체 ({notifications.length})
         </Button>
         <Button
           variant={filter === "unread" ? "default" : "outline"}
           size="sm"
-          onClick={() => setFilter("unread")}
+          onClick={() => handleFilterChange("unread")}
         >
           안읽은 ({unreadCount})
         </Button>

@@ -13,7 +13,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -25,7 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 
 // 타입 정의
 type Guide = {
@@ -71,6 +69,28 @@ type DocumentTemplate = {
   version: string | null
 }
 
+// 편집 다이얼로그에서 사용하는 항목 (가이드/FAQ/공지/서류 양식 공용, 신규 추가 시 일부 필드만 존재)
+type EditingItem = {
+  id?: string
+  title?: string
+  slug?: string
+  content?: string
+  question?: string
+  answer?: string
+  description?: string | null
+  category?: string | null
+  sort_order?: number
+  is_published?: boolean
+  is_important?: boolean
+  published_at?: string | null
+  file_url?: string
+  file_name?: string
+  file_size?: number | null
+  download_count?: number
+  is_active?: boolean
+  version?: string | null
+}
+
 export default function AdminGuidelinesPage() {
   const supabase = createClient()
   const [activeTab, setActiveTab] = useState("guides")
@@ -90,55 +110,63 @@ export default function AdminGuidelinesPage() {
   const [templateDialog, setTemplateDialog] = useState(false)
 
   // 편집 상태
-  const [editingItem, setEditingItem] = useState<any>(null)
+  const [editingItem, setEditingItem] = useState<EditingItem | null>(null)
 
   useEffect(() => {
+    // loading 초기값이 true이므로 마운트 시 setLoading(true) 불필요
+    // (refresh 변경 시에는 reloadData에서 setLoading(true) 처리)
+    const fetchData = async () => {
+      const supabase = createClient()
+      try {
+        // 가이드 조회
+        const { data: guidesData } = await supabase
+          .from("guides")
+          .select("*")
+          .is("deleted_at", null)
+          .order("sort_order", { ascending: true })
+
+        if (guidesData) setGuides(guidesData)
+
+        // FAQ 조회
+        const { data: faqsData } = await supabase
+          .from("faqs")
+          .select("*")
+          .is("deleted_at", null)
+          .order("sort_order", { ascending: true })
+
+        if (faqsData) setFaqs(faqsData)
+
+        // 공지사항 조회
+        const { data: noticesData } = await supabase
+          .from("notices")
+          .select("*")
+          .is("deleted_at", null)
+          .order("published_at", { ascending: false })
+
+        if (noticesData) setNotices(noticesData)
+
+        // 서류 양식 조회
+        const { data: templatesData } = await supabase
+          .from("document_templates")
+          .select("*")
+          .is("deleted_at", null)
+          .order("sort_order", { ascending: true })
+
+        if (templatesData) setTemplates(templatesData)
+      } catch (error) {
+        console.error("가이드라인 데이터 조회 실패:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     fetchData()
   }, [refresh])
 
-  const fetchData = async () => {
+  // 저장/삭제 후 재조회 트리거
+  const reloadData = () => {
     setLoading(true)
-    try {
-      // 가이드 조회
-      const { data: guidesData } = await supabase
-        .from("guides")
-        .select("*")
-        .is("deleted_at", null)
-        .order("sort_order", { ascending: true })
-
-      if (guidesData) setGuides(guidesData)
-
-      // FAQ 조회
-      const { data: faqsData } = await supabase
-        .from("faqs")
-        .select("*")
-        .is("deleted_at", null)
-        .order("sort_order", { ascending: true })
-
-      if (faqsData) setFaqs(faqsData)
-
-      // 공지사항 조회
-      const { data: noticesData } = await supabase
-        .from("notices")
-        .select("*")
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false })
-
-      if (noticesData) setNotices(noticesData)
-
-      // 서류 양식 조회
-      const { data: templatesData } = await supabase
-        .from("document_templates")
-        .select("*")
-        .is("deleted_at", null)
-        .order("sort_order", { ascending: true })
-
-      if (templatesData) setTemplates(templatesData)
-    } catch (error) {
-      console.error("가이드라인 데이터 조회 실패:", error)
-    } finally {
-      setLoading(false)
-    }
+    setRefresh(refresh + 1)
   }
 
   // 가이드 CRUD
@@ -161,7 +189,7 @@ export default function AdminGuidelinesPage() {
 
       setGuideDialog(false)
       setEditingItem(null)
-      setRefresh(refresh + 1)
+      reloadData()
     } catch (error) {
       console.error("가이드 저장 실패:", error)
     }
@@ -171,7 +199,7 @@ export default function AdminGuidelinesPage() {
     if (!confirm("정말 삭제하시겠습니까?")) return
     try {
       await supabase.from("guides").update({ deleted_at: new Date().toISOString() }).eq("id", id)
-      setRefresh(refresh + 1)
+      reloadData()
     } catch (error) {
       console.error("가이드 삭제 실패:", error)
     }
@@ -196,7 +224,7 @@ export default function AdminGuidelinesPage() {
 
       setFaqDialog(false)
       setEditingItem(null)
-      setRefresh(refresh + 1)
+      reloadData()
     } catch (error) {
       console.error("FAQ 저장 실패:", error)
     }
@@ -206,7 +234,7 @@ export default function AdminGuidelinesPage() {
     if (!confirm("정말 삭제하시겠습니까?")) return
     try {
       await supabase.from("faqs").update({ deleted_at: new Date().toISOString() }).eq("id", id)
-      setRefresh(refresh + 1)
+      reloadData()
     } catch (error) {
       console.error("FAQ 삭제 실패:", error)
     }
@@ -232,7 +260,7 @@ export default function AdminGuidelinesPage() {
 
       setNoticeDialog(false)
       setEditingItem(null)
-      setRefresh(refresh + 1)
+      reloadData()
     } catch (error) {
       console.error("공지사항 저장 실패:", error)
     }
@@ -242,7 +270,7 @@ export default function AdminGuidelinesPage() {
     if (!confirm("정말 삭제하시겠습니까?")) return
     try {
       await supabase.from("notices").update({ deleted_at: new Date().toISOString() }).eq("id", id)
-      setRefresh(refresh + 1)
+      reloadData()
     } catch (error) {
       console.error("공지사항 삭제 실패:", error)
     }
@@ -262,7 +290,7 @@ export default function AdminGuidelinesPage() {
         const fileNameSafe = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
         const filePath = `documents/${fileNameSafe}`
 
-        const { data: uploadData, error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from("documents")
           .upload(filePath, file)
 
@@ -296,7 +324,7 @@ export default function AdminGuidelinesPage() {
 
       setTemplateDialog(false)
       setEditingItem(null)
-      setRefresh(refresh + 1)
+      reloadData()
     } catch (error) {
       console.error("서류 양식 저장 실패:", error)
     }
@@ -306,7 +334,7 @@ export default function AdminGuidelinesPage() {
     if (!confirm("정말 삭제하시겠습니까?")) return
     try {
       await supabase.from("document_templates").update({ deleted_at: new Date().toISOString() }).eq("id", id)
-      setRefresh(refresh + 1)
+      reloadData()
     } catch (error) {
       console.error("서류 양식 삭제 실패:", error)
     }
@@ -823,7 +851,7 @@ export default function AdminGuidelinesPage() {
                 <Textarea
                   id="description"
                   name="description"
-                  defaultValue={editingItem?.description}
+                  defaultValue={editingItem?.description ?? undefined}
                   rows={2}
                 />
               </div>

@@ -46,7 +46,7 @@ export async function createNotification(params: {
   title: string
   content?: string
   link?: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }): Promise<Notification | null> {
   const supabase = createClient()
 
@@ -264,7 +264,7 @@ async function getUserEmail(userId: string): Promise<string | null> {
       return null
     }
 
-    return (data as any)?.email || null
+    return (data as { email: string | null } | null)?.email || null
   } catch (error) {
     console.error("사용자 이메일 조회 실패:", error)
     return null
@@ -303,7 +303,7 @@ export async function sendNotification(params: {
   title: string
   content?: string
   link?: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
   sendEmail?: boolean
 }): Promise<{ notification: Notification | null; emailSent: boolean }> {
   // 인앱 알림 생성

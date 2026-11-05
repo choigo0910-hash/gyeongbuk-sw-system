@@ -32,7 +32,7 @@ export async function proxy(request: NextRequest) {
           request.cookies.set({ name, value, ...options })
           response.cookies.set({ name, value, ...options })
         },
-        remove(name, options) {
+        remove(name) {
           request.cookies.delete(name)
           response.cookies.delete(name)
         },
@@ -72,7 +72,8 @@ export async function proxy(request: NextRequest) {
       .select("roles(code)")
       .eq("user_id", user.id)
 
-    const roles = rolesData?.map((r: any) => r.roles?.code) || []
+    const roles =
+      (rolesData as { roles: { code: string } | null }[] | null)?.map((r) => r.roles?.code) || []
     const isAdmin = roles.includes("admin") || roles.includes("super_admin")
 
     if (!isAdmin) {

@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useState, useEffect, useCallback } from "react"
+import { useParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { formatCurrency } from "@/lib/utils"
 import { getSignedFileUrl } from "@/lib/storage"
@@ -241,7 +241,6 @@ const statusColors: Record<string, string> = {
 
 export default function PurchaseRequestDetailPage() {
   const params = useParams()
-  const router = useRouter()
   const id = params.id as string
 
   const [request, setRequest] = useState<PurchaseRequest | null>(null)
@@ -251,12 +250,7 @@ export default function PurchaseRequestDetailPage() {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
 
-  useEffect(() => {
-    fetchRequestDetail()
-    fetchProofDocuments()
-  }, [id])
-
-  const fetchRequestDetail = async () => {
+  const fetchRequestDetail = useCallback(async () => {
     try {
       const supabase = createClient()
       const { data, error } = await supabase
@@ -272,9 +266,9 @@ export default function PurchaseRequestDetailPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
 
-  const fetchProofDocuments = async () => {
+  const fetchProofDocuments = useCallback(async () => {
     try {
       const supabase = createClient()
       const { data, error } = await supabase
@@ -298,7 +292,15 @@ export default function PurchaseRequestDetailPage() {
     } catch (error) {
       console.error("증빙서류 조회 실패:", error)
     }
-  }
+  }, [id])
+
+  useEffect(() => {
+    // 두 fetch 함수 내부의 setState는 모두 await 이후(비동기)에 실행됨
+    const load = async () => {
+      await Promise.all([fetchRequestDetail(), fetchProofDocuments()])
+    }
+    load()
+  }, [fetchRequestDetail, fetchProofDocuments])
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files

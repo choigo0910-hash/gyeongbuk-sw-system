@@ -33,34 +33,35 @@ export default function VerifyCertificatePage() {
   const [verified, setVerified] = useState(false)
 
   useEffect(() => {
+    // loading 초기값이 true이므로 마운트 시 setLoading(true) 불필요
+    // (code 세그먼트가 바뀌면 App Router가 페이지를 새로 마운트함)
+    const verifyCertificate = async () => {
+      try {
+        const supabase = createClient()
+
+        const { data, error } = await supabase
+          .from("certificates")
+          .select("*")
+          .eq("verification_code", code)
+          .single()
+
+        if (error || !data) {
+          setVerified(false)
+          setLoading(false)
+          return
+        }
+
+        setCertificate(data as Certificate)
+        setVerified(true)
+      } catch {
+        setVerified(false)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     verifyCertificate()
   }, [code])
-
-  const verifyCertificate = async () => {
-    setLoading(true)
-    try {
-      const supabase = createClient()
-
-      const { data, error } = await supabase
-        .from("certificates")
-        .select("*")
-        .eq("verification_code", code)
-        .single()
-
-      if (error || !data) {
-        setVerified(false)
-        setLoading(false)
-        return
-      }
-
-      setCertificate(data as Certificate)
-      setVerified(true)
-    } catch (error) {
-      setVerified(false)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   if (loading) {
     return (

@@ -156,7 +156,7 @@ export type ProgramApplication = BaseEntity & {
   program_id: string
   applicant_id: string
   status: "draft" | "submitted" | "reviewing" | "approved" | "waitlisted" | "rejected" | "cancelled" | "completed" | "no_show"
-  application_data: Record<string, any> | null
+  application_data: Record<string, unknown> | null
   reviewed_by: string | null
   reviewed_at: string | null
   approved_by: string | null
@@ -198,7 +198,7 @@ export type EmailLog = BaseEntity & {
   error_code: string | null
   sent_at: string | null
   retry_count: number
-  metadata: Record<string, any> | null
+  metadata: Record<string, unknown> | null
 }
 
 /**
@@ -213,7 +213,7 @@ export type StatusHistory = {
   changed_by: string | null
   changed_at: string
   reason: string | null
-  metadata: Record<string, any> | null
+  metadata: Record<string, unknown> | null
 }
 
 /**
@@ -287,7 +287,7 @@ export type ChatConversation = BaseEntity & {
   started_at: string
   ended_at: string | null
   message_count: number
-  metadata: Record<string, any> | null
+  metadata: Record<string, unknown> | null
 }
 
 /**
@@ -298,7 +298,7 @@ export type ChatMessage = {
   conversation_id: string
   role: "user" | "assistant" | "system"
   content: string
-  metadata: Record<string, any> | null
+  metadata: Record<string, unknown> | null
   created_at: string
 }
 
@@ -346,7 +346,7 @@ export type Notification = {
   sent_email_at: string | null
   sent_sms: boolean
   sent_sms_at: string | null
-  metadata: Record<string, any> | null
+  metadata: Record<string, unknown> | null
   created_at: string
 }
 

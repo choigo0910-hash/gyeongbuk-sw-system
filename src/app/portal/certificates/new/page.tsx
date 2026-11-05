@@ -1,20 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { InfoIcon } from "lucide-react"
@@ -29,16 +21,22 @@ interface CompletedProgram {
   completed_at: string
 }
 
-interface CertificateRequest {
-  application_id: string
-  program_name: string
-  participant_name: string
-  affiliation: string
+// program_applications 조회 결과 (programs!inner 조인 포함)
+interface CompletedApplicationRow {
+  id: string
+  programs: {
+    name: string
+    starts_at: string
+    ends_at: string
+    location: string | null
+  }
+  completed_at: string
 }
 
 export default function NewCertificatePage() {
   const router = useRouter()
-  const [loading, setLoading] = useState(false)
+  // 마운트 직후 완료 프로그램 조회가 시작되므로 로딩 상태로 시작
+  const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
   const [completedPrograms, setCompletedPrograms] = useState<CompletedProgram[]>([])
@@ -47,12 +45,7 @@ export default function NewCertificatePage() {
   const [affiliation, setAffiliation] = useState("")
   const [agree, setAgree] = useState(false)
 
-  useEffect(() => {
-    fetchCompletedPrograms()
-  }, [])
-
-  const fetchCompletedPrograms = async () => {
-    setLoading(true)
+  const fetchCompletedPrograms = useCallback(async () => {
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -75,7 +68,8 @@ export default function NewCertificatePage() {
         .order("completed_at", { ascending: false })
 
       if (data) {
-        const formattedData = data.map((item: any) => ({
+        // programs는 다대일 관계라 런타임에는 단일 객체로 반환됨 (타입 추론은 배열로 되므로 unknown 경유 변환)
+        const formattedData = (data as unknown as CompletedApplicationRow[]).map((item) => ({
           application_id: item.id,
           program_name: item.programs.name,
           program_start_at: item.programs.starts_at,
@@ -90,7 +84,13 @@ export default function NewCertificatePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [router])
+
+  useEffect(() => {
+    // fetchCompletedPrograms 내부의 setState는 모두 await 이후(비동기)에만 호출됨
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트 시 데이터 조회 패턴 (setState는 await 이후에만 실행)
+    fetchCompletedPrograms()
+  }, [fetchCompletedPrograms])
 
   const handleSubmit = async () => {
     if (!selectedProgram || !participantName || !affiliation) {

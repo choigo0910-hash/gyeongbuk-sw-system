@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { formatCurrency } from "@/lib/utils"
@@ -51,14 +51,8 @@ export default function BudgetDetailPage() {
   const [items, setItems] = useState<BudgetItem[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (budgetId) {
-      fetchBudget()
-    }
-  }, [budgetId])
-
-  const fetchBudget = async () => {
-    setLoading(true)
+  // loading은 useState(true)로 시작하며, 재조회 시에는 호출부에서 setLoading(true)를 먼저 호출
+  const fetchBudget = useCallback(async () => {
     try {
       const supabase = createClient()
 
@@ -90,7 +84,17 @@ export default function BudgetDetailPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [budgetId, router])
+
+  useEffect(() => {
+    if (budgetId) {
+      // fetchBudget 내부의 setState는 모두 await 이후(비동기)에 실행됨
+      const load = async () => {
+        await fetchBudget()
+      }
+      load()
+    }
+  }, [budgetId, fetchBudget])
 
   const handleSubmit = async () => {
     if (!budget || budget.status !== "draft") return
@@ -113,6 +117,7 @@ export default function BudgetDetailPage() {
       if (error) throw error
 
       alert("제출되었습니다.")
+      setLoading(true)
       fetchBudget()
     } catch (error) {
       console.error("제출 실패:", error)
@@ -128,7 +133,6 @@ export default function BudgetDetailPage() {
     return <div className="text-center py-8">예산서를 찾을 수 없습니다.</div>
   }
 
-  const canEdit = budget.status === "draft"
   const canSubmit = budget.status === "draft"
 
   return (

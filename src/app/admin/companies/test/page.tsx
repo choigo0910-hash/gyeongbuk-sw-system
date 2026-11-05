@@ -3,8 +3,15 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 
+interface TestCompany {
+  id: string
+  name: string
+  registration_number: string | null
+  ceo_name: string | null
+}
+
 export default function TestPage() {
-  const [companies, setCompanies] = useState<any[]>([])
+  const [companies, setCompanies] = useState<TestCompany[]>([])
   const [error, setError] = useState("")
 
   useEffect(() => {
@@ -25,8 +32,8 @@ export default function TestPage() {
         } else {
           setCompanies(data || [])
         }
-      } catch (e: any) {
-        setError(e.message)
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : String(e))
         console.error("Catch error:", e)
       }
     }

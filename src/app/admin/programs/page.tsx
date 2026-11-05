@@ -1,7 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -47,7 +46,6 @@ const statusColors: Record<string, string> = {
 }
 
 export default function AdminProgramsPage() {
-  const router = useRouter()
   const [programs, setPrograms] = useState<Program[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -64,12 +62,8 @@ export default function AdminProgramsPage() {
   const [location, setLocation] = useState("")
   const [capacity, setCapacity] = useState<number | null>(null)
 
-  useEffect(() => {
-    fetchPrograms()
-  }, [])
-
-  const fetchPrograms = async () => {
-    setLoading(true)
+  // 마운트 시에는 loading 초기값(true)을 사용하고, 재조회 시에는 호출부에서 setLoading(true) 처리
+  const fetchPrograms = useCallback(async () => {
     try {
       const supabase = createClient()
 
@@ -84,7 +78,12 @@ export default function AdminProgramsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트 시 데이터 조회 패턴 (setState는 await 이후에만 실행)
+    fetchPrograms()
+  }, [fetchPrograms])
 
   const handleCreateProgram = async () => {
     if (!name || !description) {
@@ -124,6 +123,7 @@ export default function AdminProgramsPage() {
       setEndsAt("")
       setLocation("")
       setCapacity(null)
+      setLoading(true)
       fetchPrograms()
     } catch (error) {
       console.error("프로그램 생성 실패:", error)

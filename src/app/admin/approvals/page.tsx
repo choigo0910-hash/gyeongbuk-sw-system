@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 type PendingApproval = {
   id: string
@@ -21,13 +20,26 @@ type PendingApproval = {
   role_code: string
 }
 
+// user_companies 조회 결과 (select("*") 중 사용하는 컬럼)
+type UserCompanyRow = {
+  id: string
+  user_id: string
+  company_id: string
+  position: string | null
+  created_at: string
+}
+
+// user_roles.select("roles!inner(code)") 결과
+type RoleCodeRow = {
+  roles: { code: string } | null
+}
+
 export default function AdminApprovalsPage() {
-  const router = useRouter()
   const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
-  const fetchPendingApprovals = async () => {
+  const fetchPendingApprovals = useCallback(async () => {
     try {
       const supabase = createClient()
 
@@ -57,7 +69,7 @@ export default function AdminApprovalsPage() {
 
       // 각 신청에 대한 상세 정보 조회
       const formattedData = await Promise.all(
-        pendingCompanies.map(async (uc: any) => {
+        (pendingCompanies as UserCompanyRow[]).map(async (uc) => {
           // 사용자 정보 조회
           const { data: profile } = await supabase
             .from("user_profiles")
@@ -89,7 +101,7 @@ export default function AdminApprovalsPage() {
             company_name: company?.name || "-",
             position: uc.position || "-",
             created_at: uc.created_at,
-            role_code: (roleData as any)?.roles?.code || "company_user",
+            role_code: (roleData as RoleCodeRow | null)?.roles?.code || "company_user",
           }
         })
       )
@@ -100,11 +112,13 @@ export default function AdminApprovalsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
+    // fetchPendingApprovals 내부의 setState는 모두 await 이후(비동기)에만 호출되므로 동기 연쇄 렌더링이 발생하지 않음
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트 시 데이터 조회 패턴 (setState는 await 이후에만 실행)
     fetchPendingApprovals()
-  }, [])
+  }, [fetchPendingApprovals])
 
   const handleApproval = async (userCompanyId: string, approve: boolean) => {
     setActionLoading(userCompanyId)
@@ -124,7 +138,7 @@ export default function AdminApprovalsPage() {
       // 목록 새로고침
       await fetchPendingApprovals()
       alert(approve ? "승인되었습니다." : "반려되었습니다.")
-    } catch (err) {
+    } catch {
       alert("오류가 발생했습니다.")
     } finally {
       setActionLoading(null)

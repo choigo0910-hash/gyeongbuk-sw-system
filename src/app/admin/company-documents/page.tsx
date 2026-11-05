@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { getSignedFileUrl } from "@/lib/storage"
 import { Button } from "@/components/ui/button"
@@ -35,6 +35,12 @@ interface CompanyDocument {
   submitted_by_email?: string
 }
 
+// company_documents 조회 결과 (companies, submitted_by_user 조인 포함)
+type CompanyDocumentRow = Omit<CompanyDocument, "company_name" | "submitted_by_email"> & {
+  companies: { name: string } | null
+  submitted_by_user: { email: string | null } | null
+}
+
 const documentTypeLabels: Record<string, string> = {
   business_registration: "사업자등록증",
   interim_report: "중간 성과 보고서",
@@ -64,12 +70,8 @@ export default function AdminCompanyDocumentsPage() {
   // Storage 버킷이 private이므로 조회 시점에 서명된 URL을 생성
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
 
-  useEffect(() => {
-    fetchDocuments()
-  }, [])
-
-  const fetchDocuments = async () => {
-    setLoading(true)
+  // 마운트 시 1회만 호출됨 (loading 초기값이 true이므로 시작 시 setLoading(true) 불필요)
+  const fetchDocuments = useCallback(async () => {
     try {
       const supabase = createClient()
 
@@ -83,7 +85,7 @@ export default function AdminCompanyDocumentsPage() {
         `)
         .order("created_at", { ascending: false })
 
-      const documentsWithNames = (data || []).map((doc: any) => ({
+      const documentsWithNames = ((data || []) as CompanyDocumentRow[]).map((doc) => ({
         ...doc,
         company_name: doc.companies?.name || "",
         submitted_by_email: doc.submitted_by_user?.email || "",
@@ -104,7 +106,13 @@ export default function AdminCompanyDocumentsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    // fetchDocuments 내부의 setState는 모두 await 이후(비동기)에만 호출됨
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트 시 데이터 조회 패턴 (setState는 await 이후에만 실행)
+    fetchDocuments()
+  }, [fetchDocuments])
 
   const filteredDocuments = documents.filter((doc) => {
     const matchesStatus = statusFilter === "all" || doc.status === statusFilter

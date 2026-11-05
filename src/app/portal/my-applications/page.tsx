@@ -11,12 +11,25 @@ interface ProgramApplication {
   id: string
   program_id: string
   status: string
-  application_data: Record<string, any> | null
+  application_data: Record<string, unknown> | null
   created_at: string
   program_name: string
   program_starts_at: string | null
   program_ends_at: string | null
   program_location: string | null
+}
+
+// program_applications.select("*, programs!inner(name, starts_at, ends_at, location)") 결과 행
+type ProgramApplicationRow = Omit<
+  ProgramApplication,
+  "program_name" | "program_starts_at" | "program_ends_at" | "program_location"
+> & {
+  programs: {
+    name: string
+    starts_at: string | null
+    ends_at: string | null
+    location: string | null
+  }
 }
 
 const statusLabels: Record<string, string> = {
@@ -47,45 +60,45 @@ export default function MyApplicationsPage() {
   const [applications, setApplications] = useState<ProgramApplication[]>([])
   const [loading, setLoading] = useState(true)
 
+  // 마운트 시 1회 조회 (loading 초기값이 true 이므로 별도 setLoading(true) 불필요)
   useEffect(() => {
+    const fetchApplications = async () => {
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (!user) {
+          return
+        }
+
+        const { data } = await supabase
+          .from("program_applications")
+          .select(`
+            *,
+            programs!inner(name, starts_at, ends_at, location)
+          `)
+          .eq("applicant_id", user.id)
+          .order("created_at", { ascending: false })
+
+        if (data) {
+          const formattedData = data.map((item: ProgramApplicationRow) => ({
+            ...item,
+            program_name: item.programs.name,
+            program_starts_at: item.programs.starts_at,
+            program_ends_at: item.programs.ends_at,
+            program_location: item.programs.location,
+          }))
+          setApplications(formattedData as ProgramApplication[])
+        }
+      } catch (error) {
+        console.error("신청 내역 조회 실패:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     fetchApplications()
   }, [])
-
-  const fetchApplications = async () => {
-    setLoading(true)
-    try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-
-      if (!user) {
-        return
-      }
-
-      const { data } = await supabase
-        .from("program_applications")
-        .select(`
-          *,
-          programs!inner(name, starts_at, ends_at, location)
-        `)
-        .eq("applicant_id", user.id)
-        .order("created_at", { ascending: false })
-
-      if (data) {
-        const formattedData = data.map((item: any) => ({
-          ...item,
-          program_name: item.programs.name,
-          program_starts_at: item.programs.starts_at,
-          program_ends_at: item.programs.ends_at,
-          program_location: item.programs.location,
-        }))
-        setApplications(formattedData as ProgramApplication[])
-      }
-    } catch (error) {
-      console.error("신청 내역 조회 실패:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   return (
     <div className="space-y-6">

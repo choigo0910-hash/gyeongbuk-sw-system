@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { getSignedFileUrl } from "@/lib/storage"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 
@@ -59,62 +59,61 @@ export default function GuidelinesPage() {
   const [notices, setNotices] = useState<Notice[]>([])
   const [templates, setTemplates] = useState<DocumentTemplate[]>([])
 
-  // 카테고리별 필터
-  const [selectedCategory, setSelectedCategory] = useState<string>("all")
-
+  // 마운트 시 1회 조회 (loading 초기값이 true 이므로 별도 setLoading(true) 불필요,
+  // 렌더마다 생성되는 supabase 인스턴스를 의존성으로 두지 않도록 effect 내부에서 생성)
   useEffect(() => {
+    const fetchData = async () => {
+      const supabase = createClient()
+      try {
+        // 가이드 조회
+        const { data: guidesData } = await supabase
+          .from("guides")
+          .select("*")
+          .eq("is_published", true)
+          .is("deleted_at", null)
+          .order("sort_order", { ascending: true })
+
+        if (guidesData) setGuides(guidesData)
+
+        // FAQ 조회
+        const { data: faqsData } = await supabase
+          .from("faqs")
+          .select("*")
+          .eq("is_published", true)
+          .is("deleted_at", null)
+          .order("sort_order", { ascending: true })
+
+        if (faqsData) setFaqs(faqsData)
+
+        // 공지사항 조회
+        const { data: noticesData } = await supabase
+          .from("notices")
+          .select("*")
+          .eq("is_published", true)
+          .is("deleted_at", null)
+          .order("published_at", { ascending: false })
+          .limit(20)
+
+        if (noticesData) setNotices(noticesData)
+
+        // 서류 양식 조회
+        const { data: templatesData } = await supabase
+          .from("document_templates")
+          .select("*")
+          .eq("is_active", true)
+          .is("deleted_at", null)
+          .order("sort_order", { ascending: true })
+
+        if (templatesData) setTemplates(templatesData)
+      } catch (error) {
+        console.error("가이드라인 데이터 조회 실패:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     fetchData()
   }, [])
-
-  const fetchData = async () => {
-    setLoading(true)
-    try {
-      // 가이드 조회
-      const { data: guidesData } = await supabase
-        .from("guides")
-        .select("*")
-        .eq("is_published", true)
-        .is("deleted_at", null)
-        .order("sort_order", { ascending: true })
-
-      if (guidesData) setGuides(guidesData)
-
-      // FAQ 조회
-      const { data: faqsData } = await supabase
-        .from("faqs")
-        .select("*")
-        .eq("is_published", true)
-        .is("deleted_at", null)
-        .order("sort_order", { ascending: true })
-
-      if (faqsData) setFaqs(faqsData)
-
-      // 공지사항 조회
-      const { data: noticesData } = await supabase
-        .from("notices")
-        .select("*")
-        .eq("is_published", true)
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false })
-        .limit(20)
-
-      if (noticesData) setNotices(noticesData)
-
-      // 서류 양식 조회
-      const { data: templatesData } = await supabase
-        .from("document_templates")
-        .select("*")
-        .eq("is_active", true)
-        .is("deleted_at", null)
-        .order("sort_order", { ascending: true })
-
-      if (templatesData) setTemplates(templatesData)
-    } catch (error) {
-      console.error("가이드라인 데이터 조회 실패:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleDownload = async (template: DocumentTemplate) => {
     try {

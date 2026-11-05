@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useRouter } from "next/navigation"
-import { useEffect, useState, useRef } from "react"
+import { useCallback, useEffect, useState, useRef } from "react"
 import { Building2, Users, Trash2, AlertCircle } from "lucide-react"
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges"
 
@@ -23,6 +23,24 @@ type PendingTeamMember = {
   created_at: string
   status: string
   is_primary: boolean
+}
+
+// user_companies.select("company_id, companies!inner(id, name, representative_name, phone)") 의 기업 정보
+type CompanyInfo = {
+  id: string
+  name: string | null
+  representative_name: string | null
+  phone: string | null
+}
+
+// user_companies.select("*") 결과 행 (사용하는 컬럼만)
+type UserCompanyRow = {
+  id: string
+  user_id: string
+  position: string | null
+  created_at: string
+  status: string | null
+  is_primary: boolean | null
 }
 
 export default function CompanySettingsPage() {
@@ -56,10 +74,8 @@ export default function CompanySettingsPage() {
   const [pendingMembers, setPendingMembers] = useState<PendingTeamMember[]>([])
   const [activeMembers, setActiveMembers] = useState<PendingTeamMember[]>([])
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("company")
-  const [pendingTabChange, setPendingTabChange] = useState<string | null>(null)
 
   // 휴대폰 번호 포맷 함수
   const formatPhoneNumber = (value: string): string => {
@@ -79,77 +95,8 @@ export default function CompanySettingsPage() {
     setCompanyPhone(formatted)
   }
 
-  const fetchCompanyInfo = async () => {
-    try {
-      setFetchLoading(true)
-      const supabase = createClient()
-
-      // 현재 사용자 확인
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push("/login")
-        return
-      }
-
-      setCurrentUserId(user.id)
-
-      // 사용자가 속한 기업 확인 (대표자만 접근 가능)
-      const { data: userCompany, error: companyError } = await supabase
-        .from("user_companies")
-        .select(`
-          company_id,
-          companies!inner(id, name, representative_name, phone)
-        `)
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .single()
-
-      if (companyError || !userCompany) {
-        setError("소속된 기업을 찾을 수 없습니다.")
-        return
-      }
-
-      // 대표자(role: company_admin) 확인
-      const { data: userRole } = await supabase
-        .from("user_roles")
-        .select("roles!inner(code)")
-        .eq("user_id", user.id)
-        .eq("roles.code", "company_admin")
-        .maybeSingle()
-
-      if (!userRole) {
-        setError("기업 정보를 수정할 권한이 없습니다. (대표자만 가능)")
-        return
-      }
-
-      const company = userCompany.companies as any
-      const initialName = company.name || ""
-      const initialRepName = company.representative_name || ""
-      const initialPhone = company.phone || ""
-
-      setCompanyId(userCompany.company_id)
-      setCompanyName(initialName)
-      setRepresentativeName(initialRepName)
-      setCompanyPhone(initialPhone)
-
-      // 초기값 저장 (변경사항 추적용)
-      initialDataRef.current = {
-        name: initialName,
-        representative_name: initialRepName,
-        phone: initialPhone
-      }
-      setHasUnsavedChanges(false)
-
-      // 팀원 승인 대기 목록 조회
-      await fetchPendingMembers(userCompany.company_id)
-    } catch (err) {
-      setError("기업 정보를 불러오는데 실패했습니다.")
-    } finally {
-      setFetchLoading(false)
-    }
-  }
-
-  const fetchPendingMembers = async (companyId: string) => {
+  // 팀원 목록 조회 (state setter와 createClient만 사용하므로 참조가 고정된 useCallback([]))
+  const fetchPendingMembers = useCallback(async (companyId: string) => {
     try {
       const supabase = createClient()
 
@@ -173,7 +120,7 @@ export default function CompanySettingsPage() {
 
       // 각 팀원의 상세 정보 조회
       const formattedData = await Promise.all(
-        allData.map(async (uc: any) => {
+        allData.map(async (uc: UserCompanyRow) => {
           const { data: profile } = await supabase
             .from("user_profiles")
             .select("name, email, phone")
@@ -200,11 +147,82 @@ export default function CompanySettingsPage() {
     } catch (err) {
       console.error("팀원 목록 조회 실패:", err)
     }
-  }
-
-  useEffect(() => {
-    fetchCompanyInfo()
   }, [])
+
+  // 마운트 시 1회 조회 (fetchLoading 초기값이 true 이므로 별도 setFetchLoading(true) 불필요)
+  // router와 fetchPendingMembers는 참조가 고정되어 있어 재실행되지 않음
+  useEffect(() => {
+    const fetchCompanyInfo = async () => {
+      try {
+        const supabase = createClient()
+
+        // 현재 사용자 확인
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push("/login")
+          return
+        }
+
+        setCurrentUserId(user.id)
+
+        // 사용자가 속한 기업 확인 (대표자만 접근 가능)
+        const { data: userCompany, error: companyError } = await supabase
+          .from("user_companies")
+          .select(`
+            company_id,
+            companies!inner(id, name, representative_name, phone)
+          `)
+          .eq("user_id", user.id)
+          .eq("status", "active")
+          .single()
+
+        if (companyError || !userCompany) {
+          setError("소속된 기업을 찾을 수 없습니다.")
+          return
+        }
+
+        // 대표자(role: company_admin) 확인
+        const { data: userRole } = await supabase
+          .from("user_roles")
+          .select("roles!inner(code)")
+          .eq("user_id", user.id)
+          .eq("roles.code", "company_admin")
+          .maybeSingle()
+
+        if (!userRole) {
+          setError("기업 정보를 수정할 권한이 없습니다. (대표자만 가능)")
+          return
+        }
+
+        const company = userCompany.companies as unknown as CompanyInfo
+        const initialName = company.name || ""
+        const initialRepName = company.representative_name || ""
+        const initialPhone = company.phone || ""
+
+        setCompanyId(userCompany.company_id)
+        setCompanyName(initialName)
+        setRepresentativeName(initialRepName)
+        setCompanyPhone(initialPhone)
+
+        // 초기값 저장 (변경사항 추적용)
+        initialDataRef.current = {
+          name: initialName,
+          representative_name: initialRepName,
+          phone: initialPhone
+        }
+        setHasUnsavedChanges(false)
+
+        // 팀원 승인 대기 목록 조회
+        await fetchPendingMembers(userCompany.company_id)
+      } catch {
+        setError("기업 정보를 불러오는데 실패했습니다.")
+      } finally {
+        setFetchLoading(false)
+      }
+    }
+
+    fetchCompanyInfo()
+  }, [router, fetchPendingMembers])
 
   // 변경사항 감지
   useEffect(() => {
@@ -259,7 +277,7 @@ export default function CompanySettingsPage() {
         phone: companyPhone
       }
       setHasUnsavedChanges(false)
-    } catch (err) {
+    } catch {
       setError("기업 정보 저장 중 오류가 발생했습니다.")
     } finally {
       setLoading(false)
@@ -316,7 +334,7 @@ export default function CompanySettingsPage() {
       // 목록 새로고칭
       await fetchPendingMembers(companyId)
       alert(approve ? "팀원이 승인되었습니다." : "신청이 반려되었습니다.")
-    } catch (err) {
+    } catch {
       alert("오류가 발생했습니다.")
     } finally {
       setActionLoading(null)
@@ -374,8 +392,7 @@ export default function CompanySettingsPage() {
       // 목록 새로고칭
       await fetchPendingMembers(companyId)
       alert("팀원이 삭제되었습니다.")
-      setDeleteConfirm(null)
-    } catch (err) {
+    } catch {
       alert("오류가 발생했습니다.")
     } finally {
       setActionLoading(null)

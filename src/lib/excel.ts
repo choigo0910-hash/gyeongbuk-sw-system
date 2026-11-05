@@ -4,6 +4,31 @@
 
 import * as XLSX from 'xlsx'
 
+/** sheet_to_json(header: 1) 결과의 셀 값 */
+type ExcelCellValue = string | number | boolean | Date | null | undefined
+
+/** 엑셀에서 파싱한 예산 항목 */
+export interface BudgetExcelItem {
+  category: string
+  detail: string
+  item: string | null
+  description: string | null
+  quantity: number | null
+  unit_price: number | null
+  amount: number
+  sort_order: number
+}
+
+/** 예산서 엑셀 내보내기용 예산서 정보 */
+export interface BudgetExportInfo {
+  fiscal_year: number | string
+  total_amount: number | string
+  status: string
+}
+
+/** 예산서 엑셀 내보내기용 항목 */
+export type BudgetExportItem = Omit<BudgetExcelItem, 'sort_order'>
+
 /**
  * 엑셀 템플릿 데이터 생성
  */
@@ -40,10 +65,10 @@ export function generateBudgetTemplate() {
 /**
  * 엑셀 파일 파싱
  */
-export function parseBudgetExcel(buffer: ArrayBuffer) {
+export function parseBudgetExcel(buffer: ArrayBuffer): BudgetExcelItem[] {
   const workbook = XLSX.read(buffer, { type: 'array' })
   const worksheet = workbook.Sheets[workbook.SheetNames[0]]
-  const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][]
+  const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as ExcelCellValue[][]
 
   // 헤더 확인 (첫 번째 행)
   if (!data || data.length < 2) {
@@ -60,8 +85,8 @@ export function parseBudgetExcel(buffer: ArrayBuffer) {
   }
 
   // 데이터 행 파싱 (헤더 제외)
-  const items = data.slice(1).map((row, index) => {
-    const item: any = {}
+  const items = data.slice(1).map((row, index): BudgetExcelItem | null => {
+    const item: Record<string, ExcelCellValue> = {}
 
     headers.forEach((header, colIndex) => {
       item[header] = row[colIndex]
@@ -73,21 +98,22 @@ export function parseBudgetExcel(buffer: ArrayBuffer) {
     }
 
     // 합계 행은 건너뜀
-    if (item['카테고리']?.includes('합계')) {
+    // 카테고리 열은 텍스트로 입력된다고 가정 (기존 동작과 동일)
+    if ((item['카테고리'] as string | undefined)?.includes('합계')) {
       return null
     }
 
     return {
-      category: item['카테고리'] || '',
-      detail: item['세목'] || '',
-      item: item['품목'] || null,
-      description: item['상세 내용'] || null,
+      category: (item['카테고리'] as string) || '',
+      detail: (item['세목'] as string) || '',
+      item: (item['품목'] as string) || null,
+      description: (item['상세 내용'] as string) || null,
       quantity: item['수량'] ? Number(item['수량']) : null,
       unit_price: item['단가(원)'] ? Number(item['단가(원)']) : null,
       amount: item['금액(원)'] ? Number(item['금액(원)']) : 0,
       sort_order: index + 1,
     }
-  }).filter(Boolean)
+  }).filter((item): item is BudgetExcelItem => Boolean(item))
 
   return items
 }
@@ -103,7 +129,7 @@ export function downloadBudgetTemplate() {
 /**
  * 예산서 엑셀 내보내기
  */
-export function exportBudgetToExcel(budget: any, items: any[]) {
+export function exportBudgetToExcel(budget: BudgetExportInfo, items: BudgetExportItem[]) {
   const worksheetData = [
     ['예산서 정보'],
     ['연도', budget.fiscal_year],

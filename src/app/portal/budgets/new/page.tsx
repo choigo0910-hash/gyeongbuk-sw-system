@@ -52,9 +52,6 @@ export default function NewBudgetPage() {
     },
   ])
 
-  // 기업 정보 (임시 - 실제로는 user_companies에서 가져와야 함)
-  const [companyId, setCompanyId] = useState("")
-
   // 카테고리 옵션
   const categories = [
     "인건비",

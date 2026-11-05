@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,7 +21,7 @@ interface ProgramApplication {
   program_id: string
   applicant_id: string
   status: string
-  application_data: Record<string, any> | null
+  application_data: Record<string, unknown> | null
   created_at: string
   program_name: string
   program_starts_at: string | null
@@ -30,6 +30,20 @@ interface ProgramApplication {
   applicant_email: string
   applicant_name: string | null
   company_name: string | null
+}
+
+// program_applications + programs/user_profiles 조인 조회 결과
+type ApplicationRow = Pick<
+  ProgramApplication,
+  "id" | "program_id" | "applicant_id" | "status" | "application_data" | "created_at"
+> & {
+  programs: {
+    name: string
+    starts_at: string | null
+    ends_at: string | null
+    location: string | null
+  }
+  user_profiles: { email: string; name: string | null }
 }
 
 const statusLabels: Record<string, string> = {
@@ -65,12 +79,9 @@ export default function AdminApplicationsPage() {
   const [searchTerm, setSearchTerm] = useState<string>("")
   const [programs, setPrograms] = useState<Array<{ id: string; name: string }>>([])
 
-  useEffect(() => {
-    fetchData()
-  }, [])
-
-  const fetchData = async () => {
-    setLoading(true)
+  // 마운트 시에는 loading 초기값(true)을 사용하고, 재조회 시에는 호출부에서 setLoading(true) 처리
+  const fetchData = useCallback(async () => {
+    const supabase = createClient()
     try {
       // 프로그램 목록 조회
       const { data: programsData } = await supabase
@@ -97,7 +108,7 @@ export default function AdminApplicationsPage() {
       if (applicationsData) {
         // 기업명 가져오기
         const formattedData = await Promise.all(
-          applicationsData.map(async (item: any) => {
+          (applicationsData as ApplicationRow[]).map(async (item) => {
             const { data: companyData } = await supabase
               .from("user_companies")
               .select("companies!inner(name)")
@@ -105,7 +116,8 @@ export default function AdminApplicationsPage() {
               .limit(1)
               .single()
 
-            const companyName = (companyData as any)?.companies?.name || null
+            const companyName =
+              (companyData as { companies: { name: string } | null } | null)?.companies?.name || null
 
             return {
               ...item,
@@ -127,7 +139,12 @@ export default function AdminApplicationsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트 시 데이터 조회 패턴 (setState는 await 이후에만 실행)
+    fetchData()
+  }, [fetchData])
 
   // 상태 변경
   const handleStatusChange = async (applicationId: string, newStatus: string) => {
@@ -169,6 +186,7 @@ export default function AdminApplicationsPage() {
       }
 
       // 데이터 새로고침
+      setLoading(true)
       fetchData()
     } catch (error) {
       console.error("상태 변경 실패:", error)
@@ -212,7 +230,13 @@ export default function AdminApplicationsPage() {
           <h1 className="text-3xl font-bold">프로그램 신청 관리</h1>
           <p className="text-muted-foreground">전체 프로그램 신청 내역을 조회하고 관리합니다</p>
         </div>
-        <Button onClick={fetchData} variant="outline">
+        <Button
+          onClick={() => {
+            setLoading(true)
+            fetchData()
+          }}
+          variant="outline"
+        >
           새로고침
         </Button>
       </div>

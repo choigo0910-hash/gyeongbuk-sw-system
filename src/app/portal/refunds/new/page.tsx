@@ -2,7 +2,7 @@
 
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { formatCurrency } from "@/lib/utils"
@@ -57,6 +57,9 @@ const paymentMethods = [
 // ID 생성을 위한 카운터 (서버/클라이언트 간 일치)
 let paymentIdCounter = 0
 const generatePaymentId = () => `payment-${Date.now()}-${paymentIdCounter++}`
+
+// 업로드 파일명용 타임스탬프 (제출 핸들러에서만 호출)
+const getUploadTimestamp = () => Date.now()
 
 export default function NewRefundApplicationPage() {
   const router = useRouter()
@@ -310,7 +313,7 @@ export default function NewRefundApplicationPage() {
       // 증빙서류 업로드
       if (proofFiles.length > 0) {
         for (const file of proofFiles) {
-          const fileName = `refund_${refundData.id}_${Date.now()}_${file.name}`
+          const fileName = `refund_${refundData.id}_${getUploadTimestamp()}_${file.name}`
           const { error: uploadError } = await supabase.storage
             .from("refund-documents")
             .upload(fileName, file)
@@ -344,7 +347,7 @@ export default function NewRefundApplicationPage() {
 
         for (const { file, type } of additionalFiles) {
           if (file) {
-            const fileName = `refund_additional_${refundData.id}_${type}_${Date.now()}_${file.name}`
+            const fileName = `refund_additional_${refundData.id}_${type}_${getUploadTimestamp()}_${file.name}`
             const { error: uploadError } = await supabase.storage
               .from("refund-documents")
               .upload(fileName, file)

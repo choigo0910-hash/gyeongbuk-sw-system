@@ -4,7 +4,6 @@ import { createContext, useContext, useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { getCurrentUserClient } from "@/lib/auth.client"
 import { Role } from "@/types"
-import { User } from "@supabase/supabase-js"
 import { useRouter } from "next/navigation"
 
 interface UserProfile {

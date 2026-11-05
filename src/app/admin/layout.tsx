@@ -3,7 +3,6 @@
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { isAdmin } from "@/lib/auth"
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -25,7 +24,6 @@ import {
   Menu,
   X,
   ChevronRight,
-  Sparkles,
   FolderOpen,
   CheckCircle
 } from "lucide-react"
@@ -80,7 +78,7 @@ export default function AdminLayout({
       }
     }
     init()
-  }, [])
+  }, [router])
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -123,6 +121,7 @@ export default function AdminLayout({
 
           {/* Logo - POSTECH 로고 */}
           <Link href="/admin/dashboard" className="flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element -- 고정 높이(h-7)·가변 너비(w-auto) 로고로 원본 크기 지정이 필요한 next/image 대신 기존 img 유지 */}
             <img
               src="/postech-logo.jpg"
               alt="POSTECH Logo"

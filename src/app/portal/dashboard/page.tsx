@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/client"
 import { formatCurrency } from "@/lib/utils"
 import { getUserRolesClient } from "@/lib/auth.client"
 import { Role } from "@/types"
-import { useEffect, useState } from "react"
+import type { Notification } from "@/types/database"
+import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,12 +18,8 @@ import {
   RefreshCw,
   Calendar,
   Clock,
-  CheckCircle,
   TrendingUp,
-  ArrowRight,
-  Sparkles,
   HelpCircle,
-  AlertCircle,
   ChevronRight,
   Building2,
   DollarSign,
@@ -44,6 +41,34 @@ type RecentActivity = {
   link: string
 }
 
+// user_companies 조인으로 가져오는 기업 정보 (companies (*))
+type CompanyRecord = {
+  id: string
+  name: string
+  [key: string]: unknown
+}
+
+// program_applications + programs 조인 조회 결과
+type ProgramInfo = {
+  id: string
+  name: string
+  starts_at: string | null
+  ends_at: string | null
+}
+
+type ProgramApplicationRow = {
+  id: string
+  status: string
+  programs: ProgramInfo | ProgramInfo[] | null
+}
+
+// 기업 검색 결과
+type CompanySearchResult = {
+  id: string
+  name: string
+  business_number: string | null
+}
+
 type PendingItem = {
   id: string
   type: "purchase" | "refund" | "program"
@@ -54,8 +79,8 @@ type PendingItem = {
 }
 
 export default function PortalDashboard() {
-  const supabase = createClient()
-  const [roles, setRoles] = useState<Role[]>([])
+  // 역할 값은 현재 화면에서 사용하지 않지만 기존 동작(조회 후 상태 저장)을 유지
+  const [, setRoles] = useState<Role[]>([])
   const [companyName, setCompanyName] = useState<string | null>(null)
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -68,34 +93,13 @@ export default function PortalDashboard() {
   }>({ budget: 0, purchase: 0, refund: 0, programs: 0 })
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([])
   const [budgetStatus, setBudgetStatus] = useState<BudgetStatus | null>(null)
-  const [pendingItems, setPendingItems] = useState<PendingItem[]>([])
-  const [unreadNotifications, setUnreadNotifications] = useState<any[]>([])
+  // 대기 업무 목록은 현재 화면에 표시하지 않지만 기존 동작(조회 후 상태 저장)을 유지
+  const [, setPendingItems] = useState<PendingItem[]>([])
+  const [unreadNotifications, setUnreadNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
 
-  useEffect(() => {
-    const init = async () => {
-      const userRoles = await getUserRolesClient()
-      setRoles(userRoles)
-
-      let currentCompanyId: string | null = null
-
-      if (userRoles.includes(Role.COMPANY_USER) || userRoles.includes(Role.COMPANY_ADMIN)) {
-        const company = await getPrimaryCompany()
-        setCompanyName(company?.name || null)
-        currentCompanyId = company?.id || null
-        setCompanyId(currentCompanyId)
-      }
-
-      if (currentCompanyId) {
-        await fetchDashboardData(currentCompanyId)
-      } else {
-        setLoading(false)
-      }
-    }
-    init()
-  }, [])
-
-  const getPrimaryCompany = async () => {
+  const getPrimaryCompany = useCallback(async () => {
+    const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return null
 
@@ -128,11 +132,12 @@ export default function PortalDashboard() {
       data = firstCompany
     }
 
-    const companies = data?.companies as any
+    const companies = data?.companies as CompanyRecord | CompanyRecord[] | null | undefined
     return Array.isArray(companies) ? companies[0] : companies
-  }
+  }, [])
 
-  const fetchDashboardData = async (companyId: string) => {
+  const fetchDashboardData = useCallback(async (companyId: string) => {
+    const supabase = createClient()
     try {
       const currentYear = new Date().getFullYear()
 
@@ -167,10 +172,6 @@ export default function PortalDashboard() {
         .in("status", ["submitted", "reviewing", "approved", "processing", "completed"])
         .is("deleted_at", null)
 
-      const pendingRefunds = refunds?.filter(r =>
-        ["submitted", "reviewing", "approved", "processing"].includes(r.status)
-      ).length || 0
-
       const totalRefundApproved = refunds?.filter(r => r.status === "completed")
         .reduce((sum, r) => sum + (r.approved_amount || 0), 0) || 0
 
@@ -191,7 +192,7 @@ export default function PortalDashboard() {
         .in("status", ["approved", "completed"])
         .is("deleted_at", null)
 
-      const activePrograms = programs?.filter((p: any) => {
+      const activePrograms = (programs as ProgramApplicationRow[] | null)?.filter((p) => {
         const now = new Date()
         const programData = Array.isArray(p.programs) ? p.programs[0] : p.programs
         const start = programData?.starts_at ? new Date(programData.starts_at) : null
@@ -309,7 +310,7 @@ export default function PortalDashboard() {
         .order("created_at", { ascending: false })
         .limit(5)
 
-      setUnreadNotifications(notifications || [])
+      setUnreadNotifications((notifications as Notification[]) || [])
       setUnreadCount((notifications || []).length)
 
       // 예산 현황
@@ -334,7 +335,30 @@ export default function PortalDashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    const init = async () => {
+      const userRoles = await getUserRolesClient()
+      setRoles(userRoles)
+
+      let currentCompanyId: string | null = null
+
+      if (userRoles.includes(Role.COMPANY_USER) || userRoles.includes(Role.COMPANY_ADMIN)) {
+        const company = await getPrimaryCompany()
+        setCompanyName(company?.name || null)
+        currentCompanyId = company?.id || null
+        setCompanyId(currentCompanyId)
+      }
+
+      if (currentCompanyId) {
+        await fetchDashboardData(currentCompanyId)
+      } else {
+        setLoading(false)
+      }
+    }
+    init()
+  }, [getPrimaryCompany, fetchDashboardData])
 
   const getStatusBadge = (status: string) => {
     const badges: Record<string, { label: string; className: string }> = {
@@ -375,11 +399,7 @@ export default function PortalDashboard() {
 
   // 기업이 배정되지 않은 경우
   if (!companyId) {
-    return <NoCompanyAssigned onCompanyAssigned={(id, name) => {
-      setCompanyId(id)
-      setCompanyName(name)
-      fetchDashboardData(id)
-    }} />
+    return <NoCompanyAssigned />
   }
 
   return (
@@ -605,11 +625,11 @@ export default function PortalDashboard() {
 }
 
 // 기업이 배정되지 않은 사용자를 위한 컴포넌트
-function NoCompanyAssigned({ onCompanyAssigned }: { onCompanyAssigned: (id: string, name: string) => void }) {
+function NoCompanyAssigned() {
   const supabase = createClient()
   const [searchQuery, setSearchQuery] = useState("")
-  const [searchResults, setSearchResults] = useState<any[]>([])
-  const [selectedCompany, setSelectedCompany] = useState<any>(null)
+  const [searchResults, setSearchResults] = useState<CompanySearchResult[]>([])
+  const [selectedCompany, setSelectedCompany] = useState<CompanySearchResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
@@ -622,6 +642,7 @@ function NoCompanyAssigned({ onCompanyAssigned }: { onCompanyAssigned: (id: stri
         return
       }
 
+      const supabase = createClient()
       const { data } = await supabase
         .from("companies")
         .select("id, name, business_number")
@@ -629,7 +650,7 @@ function NoCompanyAssigned({ onCompanyAssigned }: { onCompanyAssigned: (id: stri
         .eq("status", "active")
         .limit(10)
 
-      setSearchResults(data || [])
+      setSearchResults((data as CompanySearchResult[]) || [])
     }
 
     const timeout = setTimeout(searchCompanies, 300)
@@ -714,7 +735,7 @@ function NoCompanyAssigned({ onCompanyAssigned }: { onCompanyAssigned: (id: stri
       setSearchQuery("")
       setSearchResults([])
       setSelectedCompany(null)
-    } catch (err) {
+    } catch {
       setError("오류가 발생했습니다.")
     } finally {
       setLoading(false)

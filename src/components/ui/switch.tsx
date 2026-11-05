@@ -36,11 +36,10 @@ export function Switch({
     }
   }
 
-  React.useEffect(() => {
-    if (isControlled) {
-      setInternalChecked(checked)
-    }
-  }, [isControlled, checked])
+  // 제어 모드일 때 내부 상태를 prop과 동기화 (effect 대신 렌더 중 조정)
+  if (isControlled && internalChecked !== checked) {
+    setInternalChecked(checked)
+  }
 
   return (
     <button

@@ -1,6 +1,5 @@
 "use client"
 
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
@@ -14,13 +13,11 @@ type MemberType = "representative" | "team"
 export default function SignupCompletePage() {
   const router = useRouter()
   const [memberType, setMemberType] = useState<MemberType>("representative")
-  const [pendingApproval, setPendingApproval] = useState(true)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     // sessionStorage 플래그 확인
     const signupSuccess = sessionStorage.getItem("signupSuccess")
-    const pendingApprovalFlag = sessionStorage.getItem("pendingApproval")
     const memberTypeFlag = sessionStorage.getItem("memberType") as MemberType
 
     if (signupSuccess !== "true") {
@@ -30,8 +27,9 @@ export default function SignupCompletePage() {
     }
 
     // 상태 설정
+    // sessionStorage는 SSR 시점에 접근할 수 없고, 읽은 직후 플래그를 삭제(일회성)해야 하므로 렌더 중이 아닌 effect에서 1회 동기화
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 브라우저 전용 일회성 sessionStorage 플래그를 마운트 시 1회 읽어 반영
     setMemberType(memberTypeFlag === "representative" ? "representative" : "team")
-    setPendingApproval(pendingApprovalFlag === "true")
 
     // 플래그 삭제 (일회성)
     sessionStorage.removeItem("signupSuccess")

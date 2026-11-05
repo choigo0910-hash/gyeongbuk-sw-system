@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { parseBudgetExcel } from "@/lib/excel"
 
+// user_roles + roles(code) 조인 결과 행
+interface UserRoleRow {
+  role_id: string
+  roles: { code: string } | null
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -18,7 +24,7 @@ export async function POST(request: NextRequest) {
       .select("role_id, roles(code)")
       .eq("user_id", user.id)
 
-    const isAdmin = userRoles?.some((ur: any) => ur.roles?.code === "admin" || ur.roles?.code === "super_admin")
+    const isAdmin = (userRoles as UserRoleRow[] | null)?.some((ur) => ur.roles?.code === "admin" || ur.roles?.code === "super_admin")
     if (!isAdmin) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
@@ -77,7 +83,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 예산 항목 생성
-    const budgetItemsToInsert = budgetItems.map((item: any) => ({
+    const budgetItemsToInsert = budgetItems.map((item) => ({
       budget_id: budget.id,
       ...item,
     }))

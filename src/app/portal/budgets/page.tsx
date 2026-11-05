@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { AlertCircle } from "lucide-react"
 import Link from "next/link"
 
 interface Budget {
@@ -115,15 +114,6 @@ const purchaseStatusColors: Record<string, string> = {
   completed: "bg-green-100 text-green-700",
 }
 
-const changeTypeLabels: Record<string, string> = {
-  new: "신규",
-  delete: "삭제",
-  amount_increase: "증액",
-  amount_decrease: "감액",
-  category_change: "세목 변경",
-  content_change: "내용 변경",
-}
-
 const refundStatusLabels: Record<string, string> = {
   draft: "임시저장",
   submitted: "제출됨",
@@ -161,11 +151,10 @@ export default function BudgetsPage() {
   const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([])
   const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequest[]>([])
   const [refundApplications, setRefundApplications] = useState<RefundApplication[]>([])
-  const [budgetChanges, setBudgetChanges] = useState<BudgetChange[]>([])
   const [allowBudgetChange, setAllowBudgetChange] = useState(false)
 
   // 세목별 예산 현황 계산
-  const categoryBudgets = CATEGORIES.map(category => {
+  const categoryBudgets: CategoryBudget[] = CATEGORIES.map(category => {
     const totalBudget = budgetItems
       .filter(item => {
         const budget = budgets.find(b => b.id === item.budget_id)
@@ -240,20 +229,20 @@ export default function BudgetsPage() {
 
       // 예산별로 최신 버전 계산
       const budgetVersions: Record<string, number> = {}
-      changesData?.forEach((change: any) => {
+      const changes = changesData as BudgetChange[] | null
+      changes?.forEach((change) => {
         if (!budgetVersions[change.budget_id] || change.version > budgetVersions[change.budget_id]) {
           budgetVersions[change.budget_id] = change.version
         }
       })
 
       // 버전 정보를 예산 데이터에 병합
-      const budgetsWithVersion = (budgetsData || []).map((budget: any) => ({
+      const budgetsWithVersion = ((budgetsData as Budget[] | null) || []).map((budget) => ({
         ...budget,
         version: budgetVersions[budget.id] || 1  // 변경 이력이 없으면 1차
       }))
 
       setBudgets(budgetsWithVersion)
-      setBudgetChanges(changesData || [])
 
       // 프로그램별 예산 변경 허용 여부 조회 (회사의 활성 프로그램)
       const { data: programsData } = await supabase
@@ -263,7 +252,7 @@ export default function BudgetsPage() {
         .limit(1)
 
       // 프로그램이 여러 개일 경우, 하나라도 허용되면 true
-      const hasAllow = programsData?.some((p: any) => p.allow_budget_change) || false
+      const hasAllow = (programsData as { allow_budget_change: boolean | null }[] | null)?.some((p) => p.allow_budget_change) || false
       setAllowBudgetChange(hasAllow)
 
       setLoading(false)

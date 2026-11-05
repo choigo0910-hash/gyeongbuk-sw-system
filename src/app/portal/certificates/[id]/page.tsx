@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useState, useEffect, useCallback } from "react"
+import { useParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -45,18 +45,13 @@ const statusColors: Record<string, string> = {
 
 export default function CertificateDetailPage() {
   const params = useParams()
-  const router = useRouter()
   const id = params.id as string
 
   const [certificate, setCertificate] = useState<Certificate | null>(null)
   const [status, setStatus] = useState<CertificateStatus>({ status: "pending" })
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    fetchCertificateDetail()
-  }, [id])
-
-  const fetchCertificateDetail = async () => {
+  const fetchCertificateDetail = useCallback(async () => {
     try {
       const supabase = createClient()
       const { data, error } = await supabase
@@ -84,17 +79,17 @@ export default function CertificateDetailPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
+
+  useEffect(() => {
+    // fetchCertificateDetail 내부의 setState는 모두 await 이후(비동기)에만 호출됨
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- id 기준 데이터 조회 패턴 (setState는 await 이후에만 실행)
+    fetchCertificateDetail()
+  }, [fetchCertificateDetail])
 
   const downloadCertificate = () => {
     if (certificate?.pdf_path) {
       window.open(certificate.pdf_path, "_blank")
-    }
-  }
-
-  const verifyCertificate = () => {
-    if (certificate?.verification_code && !certificate.verification_code.startsWith("PENDING")) {
-      window.open(`/verify/${certificate.verification_code}`, "_blank")
     }
   }
 

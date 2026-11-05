@@ -3,7 +3,6 @@
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { getUserRolesClient } from "@/lib/auth.client"
 import { NotificationDropdown } from "@/components/notifications/notification-dropdown"
 import { checkUnsavedChanges } from "@/hooks/useUnsavedChanges"
 import Link from "next/link"
@@ -23,7 +22,6 @@ import {
   X,
   ChevronRight,
   FolderOpen,
-  CheckCircle,
   Building
 } from "lucide-react"
 
@@ -150,6 +148,7 @@ export default function PortalLayout({
 
           {/* Logo - POSTECH 로고 */}
           <Link href="/portal/dashboard" className="flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element -- 고정 높이(h-7)·자동 너비 로고로 원본 비율 기반 width/height를 알 수 없어 기존 <img> 유지 */}
             <img
               src="/postech-logo.jpg"
               alt="POSTECH Logo"

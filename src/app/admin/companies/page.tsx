@@ -1,12 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -38,7 +37,7 @@ const statusOptions = [
 ]
 
 export default function AdminCompaniesPage() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -57,12 +56,8 @@ export default function AdminCompaniesPage() {
     status: "active",
   })
 
-  useEffect(() => {
-    fetchCompanies()
-  }, [])
-
-  const fetchCompanies = async () => {
-    setLoading(true)
+  // 초기 로딩 상태는 useState(true)로 시작하며, 재조회 시에는 호출부에서 setLoading(true)를 먼저 호출
+  const fetchCompanies = useCallback(async () => {
     const { data, error } = await supabase
       .from("companies")
       .select("*")
@@ -72,7 +67,15 @@ export default function AdminCompaniesPage() {
       setCompanies(data)
     }
     setLoading(false)
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    // fetchCompanies 내부의 setState는 모두 await 이후(비동기)에 실행됨
+    const load = async () => {
+      await fetchCompanies()
+    }
+    load()
+  }, [fetchCompanies])
 
   const handleCreate = () => {
     setEditingCompany(null)
@@ -118,6 +121,7 @@ export default function AdminCompaniesPage() {
     }
 
     alert("삭제되었습니다.")
+    setLoading(true)
     fetchCompanies()
   }
 
@@ -155,6 +159,7 @@ export default function AdminCompaniesPage() {
     }
 
     setShowModal(false)
+    setLoading(true)
     fetchCompanies()
   }
 

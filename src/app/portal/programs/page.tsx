@@ -5,13 +5,6 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 
@@ -47,31 +40,30 @@ const statusColors: Record<string, string> = {
 export default function ProgramsListPage() {
   const [programs, setPrograms] = useState<Program[]>([])
   const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState<string>("published")
   const [searchQuery, setSearchQuery] = useState("")
 
+  // 마운트 시 1회 조회 (loading 초기값이 true 이므로 별도 setLoading(true) 불필요)
   useEffect(() => {
+    const fetchPrograms = async () => {
+      try {
+        const supabase = createClient()
+
+        const { data } = await supabase
+          .from("programs")
+          .select("*")
+          .in("status", ["published", "active"])
+          .order("starts_at", { ascending: true })
+
+        setPrograms((data as Program[]) || [])
+      } catch (error) {
+        console.error("프로그램 목록 조회 실패:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     fetchPrograms()
   }, [])
-
-  const fetchPrograms = async () => {
-    setLoading(true)
-    try {
-      const supabase = createClient()
-
-      const { data } = await supabase
-        .from("programs")
-        .select("*")
-        .in("status", ["published", "active"])
-        .order("starts_at", { ascending: true })
-
-      setPrograms((data as Program[]) || [])
-    } catch (error) {
-      console.error("프로그램 목록 조회 실패:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const filteredPrograms = programs.filter((program) => {
     const matchesSearch =

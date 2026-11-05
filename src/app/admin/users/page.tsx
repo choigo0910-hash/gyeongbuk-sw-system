@@ -1,12 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import {
   Select,
@@ -43,26 +42,27 @@ interface Company {
   status: string
 }
 
-interface UserRole {
-  id: string
-  user_id: string
-  roles: {
-    code: string
-    name: string
-  }
+// user_roles + roles 조인 조회 결과 (관계가 배열/객체 어느 쪽으로 와도 처리)
+interface RoleRow {
+  role_id: string
+  roles: { code: string } | { code: string }[] | null
 }
 
-interface UserCompany {
-  id: string
-  user_id: string
+// user_companies + companies 조인 조회 결과
+interface UserCompanyRow {
   company_id: string
-  position?: string
+  companies: { id: string; name: string }
   is_primary: boolean
+  position?: string
   status?: string
-  companies?: {
-    id: string
-    name: string
-  }
+}
+
+// user_companies + user_profiles 조인 조회 결과
+interface CompanyUserRow {
+  user_id: string
+  is_primary: boolean | null
+  position?: string
+  user_profiles: { id: string; name: string; email: string; phone?: string }
 }
 
 interface CompanyUser {
@@ -106,7 +106,7 @@ export default function AdminUsersPage() {
   const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([])
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState("")
-  const [success, setSuccess] = useState("")
+  const [, setSuccess] = useState("")
 
   // 기업 수정 폼 상태
   const [companyFormData, setCompanyFormData] = useState({
@@ -127,18 +127,8 @@ export default function AdminUsersPage() {
     is_primary: false,
   })
 
-  useEffect(() => {
-    if (!isAdmin()) {
-      router.push("/login")
-      return
-    }
-    fetchUsers()
-    fetchCompanies()
-    fetchAllCompanies()
-  }, [isAdmin, router])
-
-  const fetchUsers = async () => {
-    setLoading(true)
+  // 마운트/권한 변경 시 조회 (동기 setLoading(true) 없음 - loading 초기값 true 사용)
+  const loadUsers = useCallback(async () => {
     const supabase = createClient()
 
     const { data: profiles } = await supabase
@@ -160,7 +150,7 @@ export default function AdminUsersPage() {
           .eq("user_id", profile.user_id)
           .is("deleted_at", null)
 
-        const roles = rolesData?.map((r: any) => {
+        const roles = (rolesData as RoleRow[] | null)?.map((r) => {
           if (Array.isArray(r.roles)) {
             return r.roles[0]?.code
           }
@@ -176,7 +166,7 @@ export default function AdminUsersPage() {
             .eq("user_id", profile.user_id)
             .is("deleted_at", null)
 
-          companies = companiesData?.map((c: any) => ({
+          companies = (companiesData as UserCompanyRow[] | null)?.map((c) => ({
             id: c.companies?.id,
             name: c.companies?.name,
             is_primary: c.is_primary,
@@ -195,9 +185,15 @@ export default function AdminUsersPage() {
 
     setUsers(usersWithRoles)
     setLoading(false)
+  }, [])
+
+  // 이벤트(생성/수정 등) 후 재조회: 로딩 표시 후 조회
+  const fetchUsers = () => {
+    setLoading(true)
+    return loadUsers()
   }
 
-  const fetchCompanies = async () => {
+  const fetchCompanies = useCallback(async () => {
     const supabase = createClient()
     const { data } = await supabase
       .from("companies")
@@ -205,9 +201,9 @@ export default function AdminUsersPage() {
       .is("deleted_at", null)
 
     setCompanies(data || [])
-  }
+  }, [])
 
-  const fetchAllCompanies = async () => {
+  const fetchAllCompanies = useCallback(async () => {
     const supabase = createClient()
     const { data } = await supabase
       .from("companies")
@@ -215,7 +211,18 @@ export default function AdminUsersPage() {
       .order("name")
 
     setAllCompanies(data || [])
-  }
+  }, [])
+
+  useEffect(() => {
+    if (!isAdmin()) {
+      router.push("/login")
+      return
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트 시 데이터 조회 패턴 (setState는 await 이후에만 실행)
+    loadUsers()
+    fetchCompanies()
+    fetchAllCompanies()
+  }, [isAdmin, router, loadUsers, fetchCompanies, fetchAllCompanies])
 
   const fetchCompanyUsers = async (companyId: string) => {
     const supabase = createClient()
@@ -225,7 +232,7 @@ export default function AdminUsersPage() {
       .eq("company_id", companyId)
       .is("deleted_at", null)
 
-    const users: CompanyUser[] = userCompanyData?.map((uc: any) => ({
+    const users: CompanyUser[] = (userCompanyData as CompanyUserRow[] | null)?.map((uc) => ({
       id: uc.user_profiles.id,
       user_id: uc.user_id,
       name: uc.user_profiles.name,

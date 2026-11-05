@@ -30,19 +30,18 @@ export function Dialog({ open = false, onOpenChange, children }: DialogProps) {
   const isControlled = onOpenChange !== undefined
   const isOpen = isControlled ? open : internalOpen
 
-  const handleOpenChange = (newOpen: boolean) => {
+  const handleOpenChange = React.useCallback((newOpen: boolean) => {
     if (onOpenChange) {
       onOpenChange(newOpen)
     } else {
       setInternalOpen(newOpen)
     }
-  }
+  }, [onOpenChange])
 
-  React.useEffect(() => {
-    if (isControlled) {
-      setInternalOpen(open)
-    }
-  }, [isControlled, open])
+  // 제어 모드일 때 내부 상태를 prop과 동기화 (effect 대신 렌더 중 조정)
+  if (isControlled && internalOpen !== open) {
+    setInternalOpen(open)
+  }
 
   React.useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -53,7 +52,7 @@ export function Dialog({ open = false, onOpenChange, children }: DialogProps) {
 
     document.addEventListener("keydown", handleEscape)
     return () => document.removeEventListener("keydown", handleEscape)
-  }, [isOpen])
+  }, [isOpen, handleOpenChange])
 
   return (
     <DialogContext.Provider value={{ open: isOpen, onOpenChange: handleOpenChange }}>

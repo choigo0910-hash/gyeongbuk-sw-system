@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useCallback } from "react"
+import { useEffect, useCallback } from "react"
 
 // 전역 상태 (window 객체 사용)
 declare global {
@@ -36,8 +36,7 @@ export function useUnsavedChanges(
     window.__hasUnsavedChanges__ = true
     window.__unsavedChangesMessage__ = message
 
-    const handleBeforeUnload = (e: Event) => {
-      const event = e as any
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault()
       event.returnValue = message // Chrome을 위해 returnValue 설정 필요
       return message

@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
+import type { User } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -73,27 +74,13 @@ const NOTIFICATION_CATEGORIES = {
 }
 
 export default function NotificationSettingsPage() {
-  const supabase = createClient()
   const [settings, setSettings] = useState<NotificationSetting[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [notificationEmail, setNotificationEmail] = useState<string>("")
 
-  useEffect(() => {
-    checkUser()
-  }, [])
-
-  const checkUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      setUser(user)
-      setNotificationEmail(user.email || "")
-      await fetchSettings(user.id)
-    }
-  }
-
-  const fetchSettings = async (userId: string) => {
+  const fetchSettings = useCallback(async (userId: string) => {
     setLoading(true)
     try {
       let userSettings = await getNotificationSettings(userId)
@@ -110,7 +97,25 @@ export default function NotificationSettingsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  const checkUser = useCallback(async () => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      setUser(user)
+      setNotificationEmail(user.email || "")
+      await fetchSettings(user.id)
+    }
+  }, [fetchSettings])
+
+  useEffect(() => {
+    // checkUser 내부의 setState는 모두 await 이후(비동기)에 실행됨
+    const load = async () => {
+      await checkUser()
+    }
+    load()
+  }, [checkUser])
 
   const getSetting = (settingKey: string, notificationType: "email" | "in_app"): boolean => {
     const setting = settings.find(

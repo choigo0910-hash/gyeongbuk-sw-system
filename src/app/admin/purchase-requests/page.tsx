@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { formatCurrency } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -28,6 +28,9 @@ interface PurchaseRequest {
   created_at: string
   company_name: string
 }
+
+// purchase_requests + companies!inner(name) 조인 결과 행
+type RequestRow = Omit<PurchaseRequest, "company_name"> & { companies: { name: string } }
 
 const statusLabels: Record<string, string> = {
   draft: "임시저장",
@@ -61,12 +64,8 @@ export default function AdminPurchaseRequestsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState("")
 
-  useEffect(() => {
-    fetchRequests()
-  }, [])
-
-  const fetchRequests = async () => {
-    setLoading(true)
+  // loading은 useState(true)로 시작하므로 최초 조회 시 별도로 true로 설정하지 않음
+  const fetchRequests = useCallback(async () => {
     try {
       const supabase = createClient()
 
@@ -79,7 +78,7 @@ export default function AdminPurchaseRequestsPage() {
         .order("created_at", { ascending: false })
 
       if (data) {
-        const formattedData = data.map((item: any) => ({
+        const formattedData = (data as RequestRow[]).map((item) => ({
           ...item,
           company_name: item.companies.name,
         }))
@@ -90,7 +89,15 @@ export default function AdminPurchaseRequestsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    // fetchRequests 내부의 setState는 모두 await 이후(비동기)에 실행됨
+    const load = async () => {
+      await fetchRequests()
+    }
+    load()
+  }, [fetchRequests])
 
   const filteredRequests = requests.filter((request) => {
     const matchesStatus = statusFilter === "all" || request.status === statusFilter

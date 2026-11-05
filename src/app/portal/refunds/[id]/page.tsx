@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { formatCurrency } from "@/lib/utils"
 import { getSignedFileUrl } from "@/lib/storage"
@@ -86,7 +86,6 @@ const paymentMethodLabels: Record<string, string> = {
 
 export default function RefundDetailPage() {
   const params = useParams()
-  const router = useRouter()
   const id = params.id as string
 
   const [application, setApplication] = useState<RefundApplication | null>(null)
@@ -96,53 +95,53 @@ export default function RefundDetailPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    const fetchApplicationDetail = async () => {
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from("refund_applications")
+          .select("*")
+          .eq("id", id)
+          .single()
+
+        if (error) throw error
+        setApplication(data as RefundApplication)
+      } catch (error) {
+        console.error("환급신청 상세 조회 실패:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    const fetchProofDocuments = async () => {
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from("refund_proof_documents")
+          .select("*")
+          .eq("refund_application_id", id)
+          .order("uploaded_at", { ascending: false })
+
+        if (error) throw error
+        const docs = (data as ProofDocument[]) || []
+        setProofDocuments(docs)
+
+        const urlMap: Record<string, string> = {}
+        await Promise.all(
+          docs.map(async (doc) => {
+            const url = await getSignedFileUrl(supabase, doc.file_url)
+            if (url) urlMap[doc.id] = url
+          })
+        )
+        setProofSignedUrls(urlMap)
+      } catch (error) {
+        console.error("증빙서류 조회 실패:", error)
+      }
+    }
+
     fetchApplicationDetail()
     fetchProofDocuments()
   }, [id])
-
-  const fetchApplicationDetail = async () => {
-    try {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from("refund_applications")
-        .select("*")
-        .eq("id", id)
-        .single()
-
-      if (error) throw error
-      setApplication(data as RefundApplication)
-    } catch (error) {
-      console.error("환급신청 상세 조회 실패:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchProofDocuments = async () => {
-    try {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from("refund_proof_documents")
-        .select("*")
-        .eq("refund_application_id", id)
-        .order("uploaded_at", { ascending: false })
-
-      if (error) throw error
-      const docs = (data as ProofDocument[]) || []
-      setProofDocuments(docs)
-
-      const urlMap: Record<string, string> = {}
-      await Promise.all(
-        docs.map(async (doc) => {
-          const url = await getSignedFileUrl(supabase, doc.file_url)
-          if (url) urlMap[doc.id] = url
-        })
-      )
-      setProofSignedUrls(urlMap)
-    } catch (error) {
-      console.error("증빙서류 조회 실패:", error)
-    }
-  }
 
   if (loading) {
     return <div className="text-center py-8">로딩 중...</div>

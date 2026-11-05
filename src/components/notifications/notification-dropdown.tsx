@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
+import type { User } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Bell,
@@ -23,24 +24,14 @@ import { getUnreadCount, getUserNotifications, markAsRead, markAllAsRead } from 
 import type { Notification } from "@/types/database"
 
 export function NotificationDropdown() {
-  const supabase = createClient()
   const [isOpen, setIsOpen] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
 
-  useEffect(() => {
-    checkUser()
-  }, [])
-
-  useEffect(() => {
-    if (user && isOpen) {
-      fetchNotifications()
-    }
-  }, [isOpen, user])
-
-  const checkUser = async () => {
+  const checkUser = useCallback(async () => {
+    const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       setUser(user)
@@ -48,7 +39,15 @@ export function NotificationDropdown() {
       const count = await getUnreadCount(user.id)
       setUnreadCount(count)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    // checkUser 내부의 setState는 모두 await 이후(비동기)에 실행됨
+    const load = async () => {
+      await checkUser()
+    }
+    load()
+  }, [checkUser])
 
   const fetchNotifications = async () => {
     if (!user) return
@@ -137,7 +136,14 @@ export function NotificationDropdown() {
       <Button
         variant="ghost"
         size="icon"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          const nextOpen = !isOpen
+          setIsOpen(nextOpen)
+          // 드롭다운을 열 때마다 알림 목록 조회 (기존 isOpen effect와 동일한 시점)
+          if (nextOpen) {
+            fetchNotifications()
+          }
+        }}
         className="relative"
       >
         <Bell className="w-5 h-5" />

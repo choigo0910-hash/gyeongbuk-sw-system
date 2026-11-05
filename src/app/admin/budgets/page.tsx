@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { formatCurrency } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -82,14 +82,9 @@ export default function AdminBudgetsPage() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [programs, setPrograms] = useState<Program[]>([])
 
-  useEffect(() => {
-    fetchBudgets()
-    fetchCompanies()
-    fetchPrograms()
-  }, [])
-
-  const fetchBudgets = async () => {
-    setLoading(true)
+  // statusFilter: 조회 시점의 필터 (마운트 시에는 초기값 "all")
+  // setLoading(true)는 호출하는 쪽(새로고침)에서 처리 — 마운트 시에는 loading 초기값이 true
+  const fetchBudgets = useCallback(async (statusFilter: string) => {
     try {
       const supabase = createClient()
 
@@ -102,8 +97,8 @@ export default function AdminBudgetsPage() {
         .order("created_at", { ascending: false })
 
       // 필터 적용
-      if (filter !== "all") {
-        query = query.eq("status", filter)
+      if (statusFilter !== "all") {
+        query = query.eq("status", statusFilter)
       }
 
       const { data } = await query
@@ -114,9 +109,9 @@ export default function AdminBudgetsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const fetchCompanies = async () => {
+  const fetchCompanies = useCallback(async () => {
     try {
       const supabase = createClient()
       const { data } = await supabase
@@ -128,9 +123,9 @@ export default function AdminBudgetsPage() {
     } catch (error) {
       console.error("기업 목록 조회 실패:", error)
     }
-  }
+  }, [])
 
-  const fetchPrograms = async () => {
+  const fetchPrograms = useCallback(async () => {
     try {
       const supabase = createClient()
       const { data } = await supabase
@@ -143,7 +138,15 @@ export default function AdminBudgetsPage() {
     } catch (error) {
       console.error("프로그램 목록 조회 실패:", error)
     }
-  }
+  }, [])
+
+  // 마운트 시 1회 조회 (모든 fetch 함수는 참조가 고정된 useCallback([]) 이므로 재실행되지 않음)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트 시 데이터 조회 패턴 (setState는 await 이후에만 실행)
+    fetchBudgets("all")
+    fetchCompanies()
+    fetchPrograms()
+  }, [fetchBudgets, fetchCompanies, fetchPrograms])
 
   const filteredBudgets = filter === "all"
     ? budgets
@@ -229,7 +232,8 @@ export default function AdminBudgetsPage() {
       }
 
       // 목록 새로고침
-      fetchBudgets()
+      setLoading(true)
+      fetchBudgets(filter)
     } catch (error) {
       console.error("업로드 오류:", error)
       alert(error instanceof Error ? error.message : "업로드에 실패했습니다.")

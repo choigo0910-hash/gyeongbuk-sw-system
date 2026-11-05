@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { getSignedFileUrl } from "@/lib/storage"
 import { Button } from "@/components/ui/button"
@@ -62,12 +62,8 @@ export default function CompanyDocumentsListPage() {
   // Storage 버킷이 private이므로 조회 시점에 서명된 URL을 생성
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
 
-  useEffect(() => {
-    fetchDocuments()
-  }, [])
-
-  const fetchDocuments = async () => {
-    setLoading(true)
+  // loading은 useState(true)로 시작하므로 최초 조회 시 별도로 true로 설정하지 않음
+  const fetchDocuments = useCallback(async () => {
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -112,7 +108,15 @@ export default function CompanyDocumentsListPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    // fetchDocuments 내부의 setState는 모두 await 이후(비동기)에 실행됨
+    const load = async () => {
+      await fetchDocuments()
+    }
+    load()
+  }, [fetchDocuments])
 
   const filteredDocuments = documents.filter((doc) => {
     const matchesStatus = statusFilter === "all" || doc.status === statusFilter
